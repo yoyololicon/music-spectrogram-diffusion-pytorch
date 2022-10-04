@@ -1,0 +1,3 @@
+[submodule "music-spectrogram-diffusion"]
+	path = music-spectrogram-diffusion
+	url = https://github.com/magenta/music-spectrogram-diffusion.git
