@@ -1,4 +1,3 @@
-from tkinter import E
 import pytest
 import torch
 from models.encoder import Encoder
