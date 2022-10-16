@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-
+@torch.jit.script
 def geglu(x):
     x, gates = x.chunk(2, dim = -1)
     return x * F.gelu(gates)
