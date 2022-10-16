@@ -8,10 +8,11 @@ from .utils import sinusoidal
 
 class DecoderLayer(nn.TransformerDecoderLayer):
     def __init__(self, emb_dim, nhead, head_dim, dropout=0.1, **kwargs):
-        super().__init__(emb_dim, nhead, dropout, **kwargs)
+        super().__init__(emb_dim, 1, dropout=dropout, batch_first=True,  **kwargs)
         self.self_attn = MultiheadAttention(emb_dim, nhead, head_dim, dropout)
         self.multihead_attn = MultiheadAttention(
             emb_dim, nhead, head_dim, dropout)
+        self.linear1 = nn.Linear(emb_dim, 2 * self.linear1.weight.shape[0])
 
 
 class Decoder(nn.TransformerDecoder):
@@ -31,7 +32,7 @@ class Transformer(nn.Transformer):
         decoder = Decoder(num_decoder_layers, emb_dim,
                           nhead, head_dim,  **kwargs)
         super().__init__(d_model=emb_dim, custom_decoder=decoder,
-                         custom_encoder=encoder, **kwargs)
+                         custom_encoder=encoder, batch_first=True,  **kwargs)
 
 
 class MIDI2SpecAR(nn.Module):

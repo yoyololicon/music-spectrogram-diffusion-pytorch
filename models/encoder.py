@@ -6,7 +6,6 @@ import torch.nn.functional as F
 from torch.nn.init import xavier_uniform_
 
 
-@torch.jit.script
 def geglu(x):
     x, gates = x.chunk(2, dim=-1)
     return x * F.gelu(gates)
@@ -30,19 +29,19 @@ class MultiheadAttention(nn.Module):
 
     def forward(self, query, key, value, key_padding_mask=None, need_weights=True, attn_mask=None, average_attn_weights=True):
         B, T, _ = query.size()
-        Q = self.q_proj(query).view(B, T, self.num_heads, self.head_dim)
-        K = self.k_proj(key).view(B, -1, self.num_heads, self.head_dim)
-        V = self.v_proj(value).view(B, -1, self.num_heads, self.head_dim)
+        Q = self.q_proj(query).view(B, T, self.num_heads, self.head_dim).transpose(1, 2)
+        K = self.k_proj(key).view(B, -1, self.num_heads, self.head_dim).transpose(1, 2)
+        V = self.v_proj(value).view(B, -1, self.num_heads, self.head_dim).transpose(1, 2)
 
         attn_score = Q @ K.transpose(-2, -1) / self.head_dim ** 0.5
 
         if attn_mask is not None:
-            attn_score = attn_score + attn_mask.unsqueeze(1)
+            attn_score = attn_score + attn_mask
 
         attn_prob = F.softmax(attn_score, dim=-1)
         attn_prob = F.dropout(attn_prob, self.dropout, self.training)
-
-        attn_vec = attn_prob.transpose(1, 2) @ V.transpose(1, 2)
+        
+        attn_vec = attn_prob @ V
         x = self.emb_proj(attn_vec.transpose(1, 2).reshape(B, T, -1))
         if not need_weights:
             return x, None
@@ -53,8 +52,9 @@ class MultiheadAttention(nn.Module):
 
 class EncoderLayer(nn.TransformerEncoderLayer):
     def __init__(self, emb_dim, nhead, head_dim, dropout=0.1, **kwargs):
-        super().__init__(emb_dim, nhead, dropout, **kwargs)
+        super().__init__(emb_dim, 1, dropout=dropout, batch_first=True,  **kwargs)
         self.self_attn = MultiheadAttention(emb_dim, nhead, head_dim, dropout)
+        self.linear1 = nn.Linear(emb_dim, 2 * self.linear1.weight.shape[0])
 
     def forward(self, src: Tensor, src_mask: Optional[Tensor] = None,
                 src_key_padding_mask: Optional[Tensor] = None) -> Tensor:
