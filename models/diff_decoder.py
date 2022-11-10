@@ -34,7 +34,7 @@ class FiLM(nn.Module):
     def forward(self, x, emb):
         cond = self.linear(emb)
         gamma, beta = cond.chunk(2, dim=-1)
-        gamma += 1
+        gamma = 1 + gamma
         return gamma * x + beta
 
 
