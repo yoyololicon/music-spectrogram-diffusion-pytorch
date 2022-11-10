@@ -138,7 +138,7 @@ class MIDI2SpecDiff(nn.Module):
         self.register_buffer('out_pos_emb', sinusoidal(
             shape=(max_output_length, emb_dim)))
         self.transformer = DiffTransformer(
-            emb_dim, nhead, head_dim,  cond_dim, num_encoder_layers, num_decoder_layers, **kwargs)
+            emb_dim, nhead, head_dim,  cond_dim, num_encoder_layers, num_decoder_layers, with_context=with_context, **kwargs)
         self.linear_in = nn.Linear(output_dim, emb_dim)
         self.linear_out = nn.Linear(emb_dim, output_dim)
         self.diffusion_emb = DiffusionEmbedding(2e4, emb_dim)
