@@ -2,6 +2,7 @@ import pytest
 import torch
 from models.encoder import Encoder
 from models.ar_decoder import Decoder, Transformer
+from models.diff_decoder import DiffDecoder, DiffTransformer
 
 
 def test_encoder():
@@ -23,6 +24,16 @@ def test_decoder():
     assert y.shape == (10, 64, 512)
 
 
+def test_diff_decoder():
+    decoder = DiffDecoder(6, 512, 6, 64, 2048, dim_feedforward=1024, norm_first=True)
+
+    x = torch.randn(10, 256, 512)
+    y = torch.randn(10, 64, 512)
+    cond = torch.randn(10, 1, 2048)
+    y = decoder(y, x, cond)
+    assert y.shape == (10, 64, 512)
+
+
 def test_transformer():
     transformer = Transformer(512, 6, 64, 6, 6, dim_feedforward=1024)
 
@@ -30,4 +41,19 @@ def test_transformer():
     y = torch.randn(10, 64, 512)
     mask = torch.nn.Transformer.generate_square_subsequent_mask(64)
     y = transformer(x, y, tgt_mask=mask)
+    assert y.shape == (10, 64, 512)
+
+
+def test_diff_transformer():
+    transformer = DiffTransformer(512, 6, 64, 2048, 6, 6, dim_feedforward=1024, norm_first=True)
+
+    x = torch.randn(10, 256, 512)
+    y = torch.randn(10, 64, 512)
+    cond = torch.randn(10, 1, 2048)
+    y = transformer(x, y, cond)
+    assert y.shape == (10, 64, 512)
+
+    transformer = DiffTransformer(512, 6, 64, 2048, 6, 6, dim_feedforward=1024, norm_first=True, with_context=True)
+    context = torch.randn(10, 128, 512)
+    y = transformer(x, y, cond, context)
     assert y.shape == (10, 64, 512)
