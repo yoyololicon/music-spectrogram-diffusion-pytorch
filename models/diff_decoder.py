@@ -109,16 +109,27 @@ class DiffTransformer(nn.Module):
             if p.dim() > 1:
                 xavier_uniform_(p)
 
-    def forward(self, src, tgt, cond, ctx=None, src_mask=None, tgt_mask=None, ctx_mask=None,
+    def forward(self, src, tgt, cond, ctx=None, dropout_mask=None, src_mask=None, tgt_mask=None, ctx_mask=None,
                 memory_mask=None, src_key_padding_mask=None, ctx_key_padding_mask=None,
                 tgt_key_padding_mask=None, memory_key_padding_mask=None):
 
+        if dropout_mask is not None:
+            src = src[~dropout_mask]
         memory = self.encoder(src, mask=src_mask,
                               src_key_padding_mask=src_key_padding_mask)
+
         if hasattr(self, 'context_encoder') and ctx is not None:
+            if dropout_mask is not None:
+                ctx = ctx[~dropout_mask]
             ctx = self.context_encoder(
                 ctx, mask=ctx_mask, src_key_padding_mask=ctx_key_padding_mask)
             memory = torch.cat([memory, ctx], dim=1)
+
+        if dropout_mask is not None:
+            tmp = memory.new_zeros(
+                dropout_mask.shape[0], memory.shape[1], memory.shape[2])
+            tmp[~dropout_mask] = memory
+            memory = tmp
 
         output = self.decoder(tgt, memory, cond, tgt_mask=tgt_mask, memory_mask=memory_mask,
                               tgt_key_padding_mask=tgt_key_padding_mask,
@@ -143,7 +154,7 @@ class MIDI2SpecDiff(nn.Module):
         self.linear_out = nn.Linear(emb_dim, output_dim)
         self.diffusion_emb = DiffusionEmbedding(2e4, emb_dim)
 
-    def forward(self, midi_tokens, spec, t, context=None):
+    def forward(self, midi_tokens, spec, t, context=None, **kwargs):
         # spec: (batch, seq_len, output_dim)
         # midi_tokens: (batch, seq_len)
         batch_size, seq_len = midi_tokens.shape
@@ -153,6 +164,6 @@ class MIDI2SpecDiff(nn.Module):
         if context is not None:
             context = self.linear_in(context) + \
                 self.out_pos_emb[:context.shape[1]]
-        x = self.transformer(midi, spec, diff_cond, context)
+        x = self.transformer(midi, spec, diff_cond, context, **kwargs)
         x = self.linear_out(x)
         return x
