@@ -28,6 +28,9 @@ def log_snr2logas(log_snr: Tensor):
 
 
 class DiffusionLM(pl.LightningModule):
+    logsnr_min = -20
+    logsnr_max = 20
+
     def __init__(self,
                  num_emb: int = 900,
                  output_dim: int = 128,
@@ -59,11 +62,8 @@ class DiffusionLM(pl.LightningModule):
 
     def get_log_snr(self, t):
         """Compute Cosine log SNR for a given time step."""
-        logsnr_min = -20
-        logsnr_max = 20
-
-        b = math.arctan(math.exp(-0.5 * logsnr_max))
-        a = math.arctan(math.exp(-0.5 * logsnr_min)) - b
+        b = math.arctan(math.exp(-0.5 * self.logsnr_max))
+        a = math.arctan(math.exp(-0.5 * self.logsnr_min)) - b
         return -2.0 * torch.log(torch.tan(a * t + b))
 
     def get_training_inputs(self, x: torch.Tensor):
@@ -102,8 +102,8 @@ class DiffusionLM(pl.LightningModule):
             noise_hat = self.model(midi, z_t.repeat(
                 2, 1, 1), t[:, t_idx], context, dropout_mask=dropout_mask)
             cond_noise_hat, uncond_noise_hat = noise_hat.chunk(2, dim=0)
-            noise_hat = uncond_noise_hat * self.cfg_weighting + \
-                cond_noise_hat * (1 - self.cfg_weighting)
+            noise_hat = cond_noise_hat * self.cfg_weighting + \
+                uncond_noise_hat * (1 - self.cfg_weighting)
             if s_idx >= 0:
                 mu = (z_t - var[t_idx].sqrt() * c[s_idx]
                       * noise_hat) * alpha_st[s_idx]
