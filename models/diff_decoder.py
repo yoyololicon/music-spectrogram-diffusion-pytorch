@@ -10,15 +10,16 @@ from .utils import sinusoidal
 
 
 class DiffusionEmbedding(nn.Module):
-    def __init__(self, max_steps, emb_dim):
+    def __init__(self, max_steps, emb_dim, cond_dim):
         super().__init__()
         self.max_steps = max_steps
-        self.projection1 = nn.Linear(emb_dim, emb_dim * 4)
-        self.projection2 = nn.Linear(emb_dim * 4, emb_dim * 4)
+        self.emb_dim = emb_dim
+        self.projection1 = nn.Linear(emb_dim, cond_dim)
+        self.projection2 = nn.Linear(cond_dim, cond_dim)
 
     def forward(self, t):
         emb = get_timing_signal_1d(
-            t * self.max_steps, self.embedding.shape[1], max_timescale=self.max_steps)
+            t * self.max_steps, self.emb_dim, max_timescale=self.max_steps)
         emb = self.projection1(emb)
         emb = F.silu(emb)
         emb = self.projection2(emb)
@@ -109,16 +110,30 @@ class DiffTransformer(nn.Module):
             if p.dim() > 1:
                 xavier_uniform_(p)
 
-    def forward(self, src, tgt, cond, ctx=None, src_mask=None, tgt_mask=None, ctx_mask=None,
+    def forward(self, src, tgt, cond, ctx=None, dropout_mask=None, src_mask=None, tgt_mask=None, ctx_mask=None,
                 memory_mask=None, src_key_padding_mask=None, ctx_key_padding_mask=None,
                 tgt_key_padding_mask=None, memory_key_padding_mask=None):
 
-        memory = self.encoder(src, mask=src_mask,
-                              src_key_padding_mask=src_key_padding_mask)
-        if hasattr(self, 'context_encoder') and ctx is not None:
-            ctx = self.context_encoder(
-                ctx, mask=ctx_mask, src_key_padding_mask=ctx_key_padding_mask)
-            memory = torch.cat([memory, ctx], dim=1)
+        if dropout_mask is not None:
+            memory = torch.zeros_like(src)
+            ctx_memory = torch.zeros_like(ctx) if ctx is not None else None
+            if not dropout_mask.all():
+                memory[~dropout_mask] = self.encoder(src[~dropout_mask], mask=src_mask,
+                                                     src_key_padding_mask=src_key_padding_mask)
+
+                if hasattr(self, 'context_encoder') and ctx is not None:
+                    ctx_memory[~dropout_mask] = self.context_encoder(
+                        ctx[~dropout_mask], mask=ctx_mask, src_key_padding_mask=ctx_key_padding_mask)
+        else:
+            memory = self.encoder(src, mask=src_mask,
+                                  src_key_padding_mask=src_key_padding_mask)
+            ctx_memory = None
+            if hasattr(self, 'context_encoder') and ctx is not None:
+                ctx_memory = self.context_encoder(
+                    ctx, mask=ctx_mask, src_key_padding_mask=ctx_key_padding_mask)
+
+        if ctx_memory is not None:
+            memory = torch.cat([memory, ctx_memory], dim=1)
 
         output = self.decoder(tgt, memory, cond, tgt_mask=tgt_mask, memory_mask=memory_mask,
                               tgt_key_padding_mask=tgt_key_padding_mask,
@@ -130,20 +145,20 @@ class MIDI2SpecDiff(nn.Module):
     def __init__(self,
                  num_emb, output_dim,
                  max_input_length, max_output_length,
-                 emb_dim, nhead, head_dim, cond_dim, num_encoder_layers, num_decoder_layers, with_context=False, **kwargs) -> None:
+                 emb_dim, nhead, head_dim, num_encoder_layers, num_decoder_layers, with_context=False, **kwargs) -> None:
         super().__init__()
         self.emb = nn.Embedding(num_emb, emb_dim)
         self.register_buffer('in_pos_emb', sinusoidal(
-            shape=(max_input_length, emb_dim)))
+            shape=(max_input_length, emb_dim), permute_bands=True, random_phase_offsets=True))
         self.register_buffer('out_pos_emb', sinusoidal(
-            shape=(max_output_length, emb_dim)))
+            shape=(max_output_length, emb_dim), permute_bands=True, random_phase_offsets=True))
         self.transformer = DiffTransformer(
-            emb_dim, nhead, head_dim,  cond_dim, num_encoder_layers, num_decoder_layers, with_context=with_context, **kwargs)
+            emb_dim, nhead, head_dim,  emb_dim * 4, num_encoder_layers, num_decoder_layers, with_context=with_context, **kwargs)
         self.linear_in = nn.Linear(output_dim, emb_dim)
         self.linear_out = nn.Linear(emb_dim, output_dim)
-        self.diffusion_emb = DiffusionEmbedding(2e4, emb_dim)
+        self.diffusion_emb = DiffusionEmbedding(2e4, emb_dim, emb_dim * 4)
 
-    def forward(self, midi_tokens, spec, t, context=None):
+    def forward(self, midi_tokens, spec, t, context=None, **kwargs):
         # spec: (batch, seq_len, output_dim)
         # midi_tokens: (batch, seq_len)
         batch_size, seq_len = midi_tokens.shape
@@ -153,6 +168,6 @@ class MIDI2SpecDiff(nn.Module):
         if context is not None:
             context = self.linear_in(context) + \
                 self.out_pos_emb[:context.shape[1]]
-        x = self.transformer(midi, spec, diff_cond, context)
+        x = self.transformer(midi, spec, diff_cond, context, **kwargs)
         x = self.linear_out(x)
         return x

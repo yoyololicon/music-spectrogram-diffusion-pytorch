@@ -1,4 +1,5 @@
 torch
 torchaudio
-pytorch-lightning
+pytorch-lightning[extra]
+torch_optimizer
   
