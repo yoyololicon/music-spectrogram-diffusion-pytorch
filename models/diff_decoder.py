@@ -13,12 +13,13 @@ class DiffusionEmbedding(nn.Module):
     def __init__(self, max_steps, emb_dim, cond_dim):
         super().__init__()
         self.max_steps = max_steps
+        self.emb_dim = emb_dim
         self.projection1 = nn.Linear(emb_dim, cond_dim)
         self.projection2 = nn.Linear(cond_dim, cond_dim)
 
     def forward(self, t):
         emb = get_timing_signal_1d(
-            t * self.max_steps, self.embedding.shape[1], max_timescale=self.max_steps)
+            t * self.max_steps, self.emb_dim, max_timescale=self.max_steps)
         emb = self.projection1(emb)
         emb = F.silu(emb)
         emb = self.projection2(emb)
