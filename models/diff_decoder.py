@@ -114,22 +114,25 @@ class DiffTransformer(nn.Module):
                 tgt_key_padding_mask=None, memory_key_padding_mask=None):
 
         if dropout_mask is not None:
-            src = src[~dropout_mask]
-        memory = self.encoder(src, mask=src_mask,
-                              src_key_padding_mask=src_key_padding_mask)
+            memory = torch.zeros_like(src)
+            ctx_memory = torch.zeros_like(ctx) if ctx is not None else None
+            if not dropout_mask.all():
+                memory[~dropout_mask] = self.encoder(src[~dropout_mask], mask=src_mask,
+                                                     src_key_padding_mask=src_key_padding_mask)
 
-        if hasattr(self, 'context_encoder') and ctx is not None:
-            if dropout_mask is not None:
-                ctx = ctx[~dropout_mask]
-            ctx = self.context_encoder(
-                ctx, mask=ctx_mask, src_key_padding_mask=ctx_key_padding_mask)
-            memory = torch.cat([memory, ctx], dim=1)
+                if hasattr(self, 'context_encoder') and ctx is not None:
+                    ctx_memory[~dropout_mask] = self.context_encoder(
+                        ctx[~dropout_mask], mask=ctx_mask, src_key_padding_mask=ctx_key_padding_mask)
+        else:
+            memory = self.encoder(src, mask=src_mask,
+                                  src_key_padding_mask=src_key_padding_mask)
+            ctx_memory = None
+            if hasattr(self, 'context_encoder') and ctx is not None:
+                ctx_memory = self.context_encoder(
+                    ctx, mask=ctx_mask, src_key_padding_mask=ctx_key_padding_mask)
 
-        if dropout_mask is not None:
-            tmp = memory.new_zeros(
-                dropout_mask.shape[0], memory.shape[1], memory.shape[2])
-            tmp[~dropout_mask] = memory
-            memory = tmp
+        if ctx_memory is not None:
+            memory = torch.cat([memory, ctx_memory], dim=1)
 
         output = self.decoder(tgt, memory, cond, tgt_mask=tgt_mask, memory_mask=memory_mask,
                               tgt_key_padding_mask=tgt_key_padding_mask,
