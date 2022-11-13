@@ -94,3 +94,9 @@ def test_midi2spec_diff():
     t = torch.rand(10)
     y = model(midi, spec, t)
     assert y.shape == (10, 64, 128)
+
+    model = MIDI2SpecDiff(900, 128, 256, 64,
+                          512, 6, 64, 6, 6, with_context=True, dim_feedforward=1024)
+    context = torch.randn(10, 64, 128)
+    y = model(midi, spec, t, context)
+    assert y.shape == (10, 64, 128)
