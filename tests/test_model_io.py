@@ -25,7 +25,8 @@ def test_decoder():
 
 
 def test_diff_decoder():
-    decoder = DiffDecoder(6, 512, 6, 64, 2048, dim_feedforward=1024, norm_first=True)
+    decoder = DiffDecoder(6, 512, 6, 64, 2048,
+                          dim_feedforward=1024, norm_first=True)
 
     x = torch.randn(10, 256, 512)
     y = torch.randn(10, 64, 512)
@@ -45,15 +46,30 @@ def test_transformer():
 
 
 def test_diff_transformer():
-    transformer = DiffTransformer(512, 6, 64, 2048, 6, 6, dim_feedforward=1024, norm_first=True)
+    transformer = DiffTransformer(
+        512, 6, 64, 2048, 6, 6, dim_feedforward=1024, norm_first=True)
+    dropout_mask = torch.rand(10) > 0.5
 
     x = torch.randn(10, 256, 512)
     y = torch.randn(10, 64, 512)
     cond = torch.randn(10, 1, 2048)
     y = transformer(x, y, cond)
     assert y.shape == (10, 64, 512)
+    y = transformer(x, y, cond, dropout_mask=dropout_mask)
+    assert y.shape == (10, 64, 512)
+    y = transformer(x, y, cond, dropout_mask=torch.ones_like(dropout_mask))
+    assert y.shape == (10, 64, 512)
+    y = transformer(x, y, cond, dropout_mask=torch.zeros_like(dropout_mask))
+    assert y.shape == (10, 64, 512)
 
-    transformer = DiffTransformer(512, 6, 64, 2048, 6, 6, dim_feedforward=1024, norm_first=True, with_context=True)
+    transformer = DiffTransformer(
+        512, 6, 64, 2048, 6, 6, dim_feedforward=1024, norm_first=True, with_context=True)
     context = torch.randn(10, 128, 512)
     y = transformer(x, y, cond, context)
+    assert y.shape == (10, 64, 512)
+    y = transformer(x, y, cond, context,
+                    dropout_mask=torch.ones_like(dropout_mask))
+    assert y.shape == (10, 64, 512)
+    y = transformer(x, y, cond, context,
+                    dropout_mask=torch.zeros_like(dropout_mask))
     assert y.shape == (10, 64, 512)
