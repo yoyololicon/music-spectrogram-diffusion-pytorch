@@ -2,4 +2,5 @@ torch
 torchaudio
 pytorch-lightning[extra]
 torch_optimizer
-  
+librosa 
+note-seq
