@@ -67,9 +67,25 @@ model:
     dropout: 0.1
     layer_norm_eps: 1.0e-05
     norm_first: true
+    sample_rate: 16000
+    n_fft: 1024
+    win_length: 640
+    hop_length: 320
+    f_min: 0.0
+    f_max: 8000.0
+    pad: 0
+    n_mels: 128
+    power: 1.0
+    normalized: false
+    wkwargs: null
+    center: true
+    pad_mode: reflect
+    onesided: true
+    norm: null
+    mel_scale: htk
 data:
   class_path: lightning.mock.MockData
   init_args:
     batch_size: 4
-    use_wav: false
+    use_wav: true
     with_context: false
