@@ -1,5 +1,6 @@
 import torch
 from typing import Any, Callable, Mapping, Optional, Sequence, Tuple
+import torch.nn.functional as F
 
 
 def _audio_to_frames_pytorch(
