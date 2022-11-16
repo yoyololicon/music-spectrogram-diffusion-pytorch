@@ -2,6 +2,7 @@ import torch
 from pytorch_lightning.cli import LightningCLI
 
 from lightning import AutoregressiveLM, DiffusionLM
+from lightning.mock import MockData
 
 
 def cli_main():
