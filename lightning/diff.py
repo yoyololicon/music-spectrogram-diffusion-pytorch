@@ -62,8 +62,8 @@ class DiffusionLM(pl.LightningModule):
 
     def get_log_snr(self, t):
         """Compute Cosine log SNR for a given time step."""
-        b = math.arctan(math.exp(-0.5 * self.logsnr_max))
-        a = math.arctan(math.exp(-0.5 * self.logsnr_min)) - b
+        b = math.atan(math.exp(-0.5 * self.logsnr_max))
+        a = math.atan(math.exp(-0.5 * self.logsnr_min)) - b
         return -2.0 * torch.log(torch.tan(a * t + b))
 
     def get_training_inputs(self, x: torch.Tensor, uniform: bool = False):
