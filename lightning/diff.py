@@ -45,7 +45,7 @@ class DiffusionLM(pl.LightningModule):
                  with_context: bool = False,
                  dropout: float = 0.1,
                  layer_norm_eps: float = 1e-5,
-                 norm_first: bool = False,
+                 norm_first: bool = True,
                  ) -> None:
         super().__init__()
 
