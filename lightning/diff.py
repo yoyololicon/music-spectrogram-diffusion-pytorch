@@ -66,9 +66,12 @@ class DiffusionLM(pl.LightningModule):
         a = math.arctan(math.exp(-0.5 * self.logsnr_min)) - b
         return -2.0 * torch.log(torch.tan(a * t + b))
 
-    def get_training_inputs(self, x: torch.Tensor):
+    def get_training_inputs(self, x: torch.Tensor, uniform: bool = False):
         N = x.shape[0]
-        t = x.new_empty(N).uniform_(0, 1)
+        if uniform:
+            t = torch.linspace(0, 1, N).to(x.device)
+        else:
+            t = x.new_empty(N).uniform_(0, 1)
         log_snr = self.get_log_snr(t)
         alpha, var = log_snr2as(log_snr)
         sigma = var.sqrt()
@@ -130,6 +133,23 @@ class DiffusionLM(pl.LightningModule):
             'loss': loss,
         }
         self.log_dict(values, prog_bar=False, sync_dist=True)
+        return loss
+
+
+    def validation_step(self, batch, batch_idx):
+        midi, spec, *_ = batch
+        if len(_) > 0:
+            context = _[0]
+        else:
+            context = None
+        z_t, t, noise = self.get_training_inputs(spec, uniform=True)
+        noise_hat = self.model(midi, z_t, t, context)
+        loss = F.l1_loss(noise_hat, noise)
+
+        values = {
+            'val_loss': loss,
+        }
+        self.log_dict(values, prog_bar=True, sync_dist=True)
         return loss
 
     def configure_optimizers(self):

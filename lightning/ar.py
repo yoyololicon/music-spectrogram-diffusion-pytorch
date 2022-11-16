@@ -45,5 +45,18 @@ class AutoregressiveLM(pl.LightningModule):
         self.log_dict(values, prog_bar=False, sync_dist=True)
         return loss
 
+    def validation_step(self, batch, batch_idx):
+        midi, spec, *_ = batch
+        past_spec = spec.roll(1, dims=1)
+        past_spec[:, 0] = 0
+        pred = self.model(midi, past_spec)
+        loss = F.mse_loss(pred, spec)
+
+        values = {
+            'val_loss': loss,
+        }
+        self.log_dict(values, prog_bar=True, sync_dist=True)
+        return loss
+
     def configure_optimizers(self):
         return optim.Adafactor(self.parameters(), lr=1e-3)
