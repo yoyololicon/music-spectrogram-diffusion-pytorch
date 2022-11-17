@@ -1,13 +1,13 @@
 import pytorch_lightning as pl
 import torch_optimizer as optim
 import torch
-from torch import Tensor
+from torch import Tensor, nn
 import torch.nn.functional as F
-from torchaudio.transforms import MelSpectrogram
 import math
 from tqdm import tqdm
 from models.diff_decoder import MIDI2SpecDiff
-from .mel_interface import MelFeatureInterface
+from .mel import MelFeature
+from .scaler import get_scaler
 
 
 def log_snr2snr(log_snr: Tensor) -> Tensor:
@@ -29,7 +29,7 @@ def log_snr2logas(log_snr: Tensor):
     return 0.5 * (log_snr + log_var), log_var
 
 
-class DiffusionLM(pl.LightningModule, MelFeatureInterface):
+class DiffusionLM(pl.LightningModule):
     logsnr_min = -20
     logsnr_max = 20
 
@@ -62,7 +62,10 @@ class DiffusionLM(pl.LightningModule, MelFeatureInterface):
             layer_norm_eps=layer_norm_eps, norm_first=norm_first,
         )
 
-        self.mel = MelSpectrogram(window_fn=torch.hann_window, **mel_kwargs)
+        self.mel = nn.Sequential(
+            MelFeature(window_fn=torch.hann_window, **mel_kwargs),
+            get_scaler()
+        )
 
     def get_log_snr(self, t):
         """Compute Cosine log SNR for a given time step."""
@@ -122,10 +125,10 @@ class DiffusionLM(pl.LightningModule, MelFeatureInterface):
 
     def training_step(self, batch, batch_idx):
         midi, wav, *_ = batch
-        spec = self.get_mel(wav)
+        spec = self.mel(wav)
         if len(_) > 0:
             context = _[0]
-            context = self.get_mel(context)
+            context = self.mel(context)
         else:
             context = None
         N = midi.shape[0]
@@ -141,13 +144,12 @@ class DiffusionLM(pl.LightningModule, MelFeatureInterface):
         self.log_dict(values, prog_bar=False, sync_dist=True)
         return loss
 
-
     def validation_step(self, batch, batch_idx):
         midi, wav, *_ = batch
-        spec = self.get_mel(wav)
+        spec = self.mel(wav)
         if len(_) > 0:
             context = _[0]
-            context = self.get_mel(context)
+            context = self.mel(context)
         else:
             context = None
         z_t, t, noise = self.get_training_inputs(spec, uniform=True)
