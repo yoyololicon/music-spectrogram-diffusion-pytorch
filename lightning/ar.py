@@ -1,9 +1,13 @@
 import pytorch_lightning as pl
 import torch
+from torch import nn
 import torch_optimizer as optim
 import torch.nn.functional as F
+from torchaudio.transforms import MelSpectrogram
 
 from models.ar_decoder import MIDI2SpecAR
+from .mel import MelFeature
+from .scaler import get_scaler
 
 
 class AutoregressiveLM(pl.LightningModule):
@@ -18,8 +22,8 @@ class AutoregressiveLM(pl.LightningModule):
                  num_layers: int = 8,
                  dropout: float = 0.1,
                  layer_norm_eps: float = 1e-5,
-                 norm_first: bool = False,
-                 ) -> None:
+                 norm_first: bool = True,
+                 **mel_kwargs) -> None:
         super().__init__()
 
         self.model = MIDI2SpecAR(
@@ -29,11 +33,17 @@ class AutoregressiveLM(pl.LightningModule):
             layer_norm_eps=layer_norm_eps, norm_first=norm_first,
         )
 
+        self.mel = nn.Sequential(
+            MelFeature(window_fn=torch.hann_window, **mel_kwargs),
+            get_scaler()
+        )
+
     def forward(self, midi, *args, **kwargs):
         return self.model.infer(midi, *args, **kwargs)
 
     def training_step(self, batch, batch_idx):
-        midi, spec, *_ = batch
+        midi, wav, *_ = batch
+        spec = self.mel(wav)
         past_spec = spec.roll(1, dims=1)
         past_spec[:, 0] = 0
         pred = self.model(midi, past_spec)
@@ -43,6 +53,20 @@ class AutoregressiveLM(pl.LightningModule):
             'loss': loss,
         }
         self.log_dict(values, prog_bar=False, sync_dist=True)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        midi, wav, *_ = batch
+        spec = self.mel(wav)
+        past_spec = spec.roll(1, dims=1)
+        past_spec[:, 0] = 0
+        pred = self.model(midi, past_spec)
+        loss = F.mse_loss(pred, spec)
+
+        values = {
+            'val_loss': loss,
+        }
+        self.log_dict(values, prog_bar=True, sync_dist=True)
         return loss
 
     def configure_optimizers(self):

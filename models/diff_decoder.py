@@ -121,14 +121,14 @@ class DiffTransformer(nn.Module):
                 memory[~dropout_mask] = self.encoder(src[~dropout_mask], mask=src_mask,
                                                      src_key_padding_mask=src_key_padding_mask)
 
-                if hasattr(self, 'context_encoder') and ctx is not None:
+                if ctx is not None:
                     ctx_memory[~dropout_mask] = self.context_encoder(
                         ctx[~dropout_mask], mask=ctx_mask, src_key_padding_mask=ctx_key_padding_mask)
         else:
             memory = self.encoder(src, mask=src_mask,
                                   src_key_padding_mask=src_key_padding_mask)
             ctx_memory = None
-            if hasattr(self, 'context_encoder') and ctx is not None:
+            if ctx is not None:
                 ctx_memory = self.context_encoder(
                     ctx, mask=ctx_mask, src_key_padding_mask=ctx_key_padding_mask)
 

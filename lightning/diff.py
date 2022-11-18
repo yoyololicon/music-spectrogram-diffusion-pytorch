@@ -1,11 +1,13 @@
 import pytorch_lightning as pl
 import torch_optimizer as optim
 import torch
-from torch import Tensor
+from torch import Tensor, nn
 import torch.nn.functional as F
 import math
 from tqdm import tqdm
 from models.diff_decoder import MIDI2SpecDiff
+from .mel import MelFeature
+from .scaler import get_scaler
 
 
 def log_snr2snr(log_snr: Tensor) -> Tensor:
@@ -45,8 +47,8 @@ class DiffusionLM(pl.LightningModule):
                  with_context: bool = False,
                  dropout: float = 0.1,
                  layer_norm_eps: float = 1e-5,
-                 norm_first: bool = False,
-                 ) -> None:
+                 norm_first: bool = True,
+                 **mel_kwargs) -> None:
         super().__init__()
 
         self.cfg_dropout = cfg_dropout
@@ -60,15 +62,23 @@ class DiffusionLM(pl.LightningModule):
             layer_norm_eps=layer_norm_eps, norm_first=norm_first,
         )
 
+        self.mel = nn.Sequential(
+            MelFeature(window_fn=torch.hann_window, **mel_kwargs),
+            get_scaler()
+        )
+
     def get_log_snr(self, t):
         """Compute Cosine log SNR for a given time step."""
-        b = math.arctan(math.exp(-0.5 * self.logsnr_max))
-        a = math.arctan(math.exp(-0.5 * self.logsnr_min)) - b
+        b = math.atan(math.exp(-0.5 * self.logsnr_max))
+        a = math.atan(math.exp(-0.5 * self.logsnr_min)) - b
         return -2.0 * torch.log(torch.tan(a * t + b))
 
-    def get_training_inputs(self, x: torch.Tensor):
+    def get_training_inputs(self, x: torch.Tensor, uniform: bool = False):
         N = x.shape[0]
-        t = x.new_empty(N).uniform_(0, 1)
+        if uniform:
+            t = torch.linspace(0, 1, N).to(x.device)
+        else:
+            t = x.new_empty(N).uniform_(0, 1)
         log_snr = self.get_log_snr(t)
         alpha, var = log_snr2as(log_snr)
         sigma = var.sqrt()
@@ -114,9 +124,11 @@ class DiffusionLM(pl.LightningModule):
         return final
 
     def training_step(self, batch, batch_idx):
-        midi, spec, *_ = batch
+        midi, wav, *_ = batch
+        spec = self.mel(wav)
         if len(_) > 0:
             context = _[0]
+            context = self.mel(context)
         else:
             context = None
         N = midi.shape[0]
@@ -130,6 +142,24 @@ class DiffusionLM(pl.LightningModule):
             'loss': loss,
         }
         self.log_dict(values, prog_bar=False, sync_dist=True)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        midi, wav, *_ = batch
+        spec = self.mel(wav)
+        if len(_) > 0:
+            context = _[0]
+            context = self.mel(context)
+        else:
+            context = None
+        z_t, t, noise = self.get_training_inputs(spec, uniform=True)
+        noise_hat = self.model(midi, z_t, t, context)
+        loss = F.l1_loss(noise_hat, noise)
+
+        values = {
+            'val_loss': loss,
+        }
+        self.log_dict(values, prog_bar=True, sync_dist=True)
         return loss
 
     def configure_optimizers(self):

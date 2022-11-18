@@ -29,9 +29,12 @@ class MultiheadAttention(nn.Module):
 
     def forward(self, query, key, value, key_padding_mask=None, need_weights=True, attn_mask=None, average_attn_weights=True):
         B, T, _ = query.size()
-        Q = self.q_proj(query).view(B, T, self.num_heads, self.head_dim).transpose(1, 2)
-        K = self.k_proj(key).view(B, -1, self.num_heads, self.head_dim).transpose(1, 2)
-        V = self.v_proj(value).view(B, -1, self.num_heads, self.head_dim).transpose(1, 2)
+        Q = self.q_proj(query).view(B, T, self.num_heads,
+                                    self.head_dim).transpose(1, 2)
+        K = self.k_proj(key).view(B, -1, self.num_heads,
+                                  self.head_dim).transpose(1, 2)
+        V = self.v_proj(value).view(B, -1, self.num_heads,
+                                    self.head_dim).transpose(1, 2)
 
         attn_score = Q @ K.transpose(-2, -1) / self.head_dim ** 0.5
 
@@ -40,7 +43,7 @@ class MultiheadAttention(nn.Module):
 
         attn_prob = F.softmax(attn_score, dim=-1)
         attn_prob = F.dropout(attn_prob, self.dropout, self.training)
-        
+
         attn_vec = attn_prob @ V
         x = self.emb_proj(attn_vec.transpose(1, 2).reshape(B, T, -1))
         if not need_weights:
@@ -91,3 +94,14 @@ class Encoder(nn.TransformerEncoder):
         )
         encoder_norm = nn.LayerNorm(emb_dim)
         super().__init__(encoder_layer, layers, encoder_norm)
+
+    def forward(self, src: Tensor, mask: Optional[Tensor] = None, src_key_padding_mask: Optional[Tensor] = None) -> Tensor:
+        output = src
+        for mod in self.layers:
+            output = mod(output, src_mask=mask,
+                         src_key_padding_mask=src_key_padding_mask)
+
+        if self.norm is not None:
+            output = self.norm(output)
+
+        return output
