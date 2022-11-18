@@ -100,7 +100,7 @@ class MusicNet(Dataset):
                 tmp = np.pad(tmp, ((0, 0), (0, self.segment_length - tmp.shape[1])), 'constant')
             ctx, data = tmp
 
-        # tokens = self.midi[chunk_index]
+        # tokens = midi[chunk_index]
         tokens = np.random.randint(0, 10, 2048)
         return tokens, data, ctx
 
