@@ -1,7 +1,6 @@
 import torch
 from torch.utils.data import Dataset
 import soundfile as sf
-import os
 from pathlib import Path
 import resampy
 import numpy as np
@@ -95,12 +94,11 @@ class MusicNet(Dataset):
         data = data.mean(axis=1)
         ctx = ctx.mean(axis=1)
         if self.sr is not None and sr != self.sr:
-            data = resampy.resample(data, sr, self.sr, axis=0)
-            ctx = resampy.resample(ctx, sr, self.sr, axis=0)
-            if data.shape[0] < self.segment_length:
-                data = np.pad(data, (0, self.segment_length - data.shape[0]), 'constant')
-            if ctx.shape[0] < self.segment_length:
-                ctx = np.pad(ctx, (0, self.segment_length - ctx.shape[0]), 'constant')
+            tmp = np.vstack([ctx, data])
+            tmp = resampy.resample(tmp, sr, self.sr, axis=1, filter='kaiser_fast')[:, :self.segment_length]
+            if tmp.shape[1] < self.segment_length:
+                tmp = np.pad(tmp, ((0, 0), (0, self.segment_length - tmp.shape[1])), 'constant')
+            ctx, data = tmp
 
         # tokens = self.midi[chunk_index]
         tokens = np.random.randint(0, 10, 2048)
