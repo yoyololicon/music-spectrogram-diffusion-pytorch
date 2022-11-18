@@ -10,7 +10,7 @@ class Scaler(nn.Module):
         self.register_buffer("max", torch.tensor(init_max))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return (x - self.min) / (self.max - self.min)
+        return (x - self.min) / (self.max - self.min) * 2 - 1
 
 
 def adaptive_update_hook(module: Scaler, input):
