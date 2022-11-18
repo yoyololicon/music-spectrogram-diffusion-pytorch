@@ -1,7 +1,7 @@
 import dataclasses
 import math
 import note_seq
-from event_codec import EventRange, Codec
+from .event_codec import EventRange, Codec
 
 
 # defaults for vocabulary config
