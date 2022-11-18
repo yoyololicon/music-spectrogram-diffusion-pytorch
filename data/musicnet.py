@@ -11,8 +11,6 @@ class MusicNet(Dataset):
                 '2300', '2308', '2477', '2611', '2289', '1790', '2315', '2504']
     _test_ids = ['2118', '2501', '1813', '1729', '1893', '2296', '1776', '2487',
                  '2537', '2186', '2431', '2432', '2497', '2621', '2507']
-    wave_path: str
-    midi_path: str
 
     def __init__(self,
                  path: str,
@@ -96,7 +94,8 @@ class MusicNet(Dataset):
                 data = resampy.resample(data, sr, self.sr, axis=0, filter='kaiser_fast')[
                     :self.segment_length]
                 if data.shape[0] < self.segment_length:
-                    data = np.pad(data, ((0, self.segment_length - data.shape[0]),), 'constant')
+                    data = np.pad(
+                        data, ((0, self.segment_length - data.shape[0]),), 'constant')
             return tokens, data
 
         ctx_offset = offset - chunk_frames
