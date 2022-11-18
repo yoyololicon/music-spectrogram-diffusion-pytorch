@@ -232,6 +232,19 @@ def read_midi(filename):
 
 
 def tokenize(filename, frame_rate, segment_length, output_size, step_rate=100):
+    """ Convert MIDI notes into integer tokens.
+    Notice the total time in MIDI file and in wave file may differ.
+    Wave samples of times beyond MIDI total time should be discarded.
+    Args:
+        filename: path to MIDI file.
+        frame_rate: number of frames per second.
+        segment_length: number of frames in each segment.
+        output_size: number of tokens per segment.
+        step_rate: number of MIDI frames per second.
+    Returns:
+        Tokenized and segmented tensor and start and end time of each segment.
+        (torch.Tensor : (N, output_size), torch.Tensor: (N, 2))
+    """
     codec = vocabularies.build_codec(step_rate, segment_length / frame_rate)
     ns = read_midi(filename)
     ns = note_seq.apply_sustain_control_changes(ns)
