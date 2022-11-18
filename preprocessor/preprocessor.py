@@ -136,7 +136,9 @@ def encode_and_index_events(
 
 
 def note_event_data_to_events(
-    state: Optional[Any], value: NoteEventData, codec: Codec,
+    state: Optional[Any],
+    value: NoteEventData,
+    codec: Codec,
 ) -> Sequence[Event]:
     """Convert note event data to a sequence of events."""
     num_velocity_bins = vocabularies.num_velocity_bins_from_codec(codec)
@@ -252,12 +254,8 @@ def tokenize(filename, frame_rate, segment_length, output_size, step_rate=100):
         note_encoding_state_to_events,
     )
 
-    seg_start_idx, seg_end_idx, seg_state_idx = split_tokens(
-        [
-            torch.Tensor(event_start_indices),
-            torch.Tensor(event_end_indices),
-            torch.Tensor(state_event_indices),
-        ],
+    seg_start_idx, seg_end_idx, seg_state_idx, segment_times = split_tokens(
+        [event_start_indices, event_end_indices, state_event_indices, frame_times],
         segment_length=segment_length,
     )
 
@@ -274,4 +272,5 @@ def tokenize(filename, frame_rate, segment_length, output_size, step_rate=100):
             seg_state_idx[i],
         )
         segmented_events[i] = count_shift_and_pad(event, output_size, codec)
-    return segmented_events
+    first_last_idx = torch.Tensor([0, -1]).long()
+    return segmented_events, segment_times[:, first_last_idx]
