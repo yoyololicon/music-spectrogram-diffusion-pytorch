@@ -204,7 +204,7 @@ def extract_sequence_with_indices(
 
 
 def count_shift_and_pad(
-    event_segment: torch.Tensor, output_size: int, codec: Codec
+    event_segment: torch.Tensor, output_size: int, codec: Codec, 
 ) -> torch.Tensor:
     has_shift = False
     total_shift_steps = 0
@@ -224,6 +224,18 @@ def count_shift_and_pad(
     return padded_events
 
 
+def count_shift_and_pad_torch(
+    event_segment: torch.Tensor, output_size: int, codec: Codec
+) -> torch.Tensor:
+    shift_idx = codec.is_shift_event_index_torch(event_segment).int()
+    change_locations = F.pad((shift_idx[1:] - shift_idx[:-1]) == -1, (0, 1), value=False)
+    shift_count = torch.zeros(len(shift_idx)).int()
+    shift_count[shift_idx.bool()] = torch.arange(512).int() + 1
+    event_segment[change_locations] = shift_count[change_locations]
+    value_idx = event_segment != 1
+    return F.pad(event_segment[value_idx], (0, output_size-sum(value_idx)))
+
+
 def read_midi(filename):
     with open(filename, "rb") as f:
         content = f.read()
@@ -231,7 +243,7 @@ def read_midi(filename):
     return ns
 
 
-def tokenize(filename, frame_rate, segment_length, output_size, step_rate=100):
+def tokenize(ns, frame_rate, segment_length, output_size, step_rate=100):
     """ Convert MIDI notes into integer tokens.
     Notice the total time in MIDI file and in wave file may differ.
     Wave samples of times beyond MIDI total time should be discarded.
@@ -246,7 +258,6 @@ def tokenize(filename, frame_rate, segment_length, output_size, step_rate=100):
         (torch.Tensor : (N, output_size), torch.Tensor: (N, 2))
     """
     codec = vocabularies.build_codec(step_rate, segment_length / frame_rate)
-    ns = read_midi(filename)
     ns = note_seq.apply_sustain_control_changes(ns)
     num_frames = np.ceil(ns.total_time * frame_rate)
     frame_times = torch.arange(num_frames) / frame_rate

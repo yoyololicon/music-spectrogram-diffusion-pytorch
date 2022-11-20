@@ -16,6 +16,7 @@
 
 import dataclasses
 from typing import List, Tuple
+import torch
 
 
 @dataclasses.dataclass
@@ -34,14 +35,14 @@ class Event:
 class Codec:
     """Encode and decode events.
 
-  Useful for declaring what certain ranges of a vocabulary should be used for.
-  This is intended to be used from Python before encoding or after decoding with
-  GenericTokenVocabulary. This class is more lightweight and does not include
-  things like EOS or UNK token handling.
+    Useful for declaring what certain ranges of a vocabulary should be used for.
+    This is intended to be used from Python before encoding or after decoding with
+    GenericTokenVocabulary. This class is more lightweight and does not include
+    things like EOS or UNK token handling.
 
-  To ensure that 'shift' events are always the first block of the vocab and
-  start at 0, that event type is required and specified separately.
-  """
+    To ensure that 'shift' events are always the first block of the vocab and
+    start at 0, that event type is required and specified separately.
+    """
 
     def __init__(
         self,
@@ -51,12 +52,12 @@ class Codec:
     ):
         """Define Codec.
 
-    Args:
-      max_shift_steps: Maximum number of shift steps that can be encoded.
-      steps_per_second: Shift steps will be interpreted as having a duration of
-          1 / steps_per_second.
-      event_ranges: Other supported event types and their ranges.
-    """
+        Args:
+          max_shift_steps: Maximum number of shift steps that can be encoded.
+          steps_per_second: Shift steps will be interpreted as having a duration of
+              1 / steps_per_second.
+          event_ranges: Other supported event types and their ranges.
+        """
         self.steps_per_second = steps_per_second
         self._shift_range = EventRange(
             type="shift", min_value=0, max_value=max_shift_steps
@@ -75,8 +76,12 @@ class Codec:
     # events that are intended to be used from within autograph functions.
 
     def is_shift_event_index(self, index: int) -> bool:
-        return (self._shift_range.min_value <= index) and (
-            index <= self._shift_range.max_value
+        return (self._shift_range.min_value <= index) and (index <= self._shift_range.max_value)
+
+    def is_shift_event_index_torch(self, index: int) -> bool:
+        return torch.logical_and(
+            (self._shift_range.min_value <= index),
+            (index <= self._shift_range.max_value),
         )
 
     @property
