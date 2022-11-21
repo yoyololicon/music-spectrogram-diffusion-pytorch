@@ -28,8 +28,9 @@ def get_noteseq(title):
             start, end = note[0], note[0] + note[1]
             brend = int((note[2] - pitch) * 4096)
             exec(f"inst{idx}.notes.append(pretty_midi.Note(120, pitch, start, end))")
-            exec(f"inst{idx}.pitch_bends.append(pretty_midi.PitchBend(brend, start))")
-            exec(f"inst{idx}.pitch_bends.append(pretty_midi.PitchBend(brend, end))")  
+            # pitch encoder for noteseq only applicable for integer midi value
+            # exec(f"inst{idx}.pitch_bends.append(pretty_midi.PitchBend(brend, start))")
+            # exec(f"inst{idx}.pitch_bends.append(pretty_midi.PitchBend(brend, end))")  
     noteseq = midi_to_note_sequence(midi_data)
     return noteseq
     
@@ -37,7 +38,7 @@ def get_noteseq(title):
 class MyDataset(torch.utils.data.Dataset): #padding等加在getterm #pad放在init #np_to_torch放在
     def __init__(self, path="/import/c4dm-datasets/GuitarSet"):
         self.path = path
-        self.para = MEL_PARA_DICT
+        # self.para = MEL_PARA_DICT
         self.data = []
         try:
             file_ = open('./data.pk', 'wb')
@@ -70,8 +71,8 @@ class MyDataset(torch.utils.data.Dataset): #padding等加在getterm #pad放在in
         context = transform(context)
         if audio.shape[1] < 5.12 * 16000:
             audio = torch.nn.functional.pad(audio, (0, int(5.12 * 16000 - audio.shape[1])))
-        audio = self.audio2mel(audio)
-        context = self.audio2mel(context)
+        # audio = self.audio2mel(audio)
+        # context = self.audio2mel(context)
         return title, context, audio
     
     def audio2mel(self, input, melkwargs=MEL_PARA_DICT, pad=5.12):
@@ -107,7 +108,7 @@ if __name__ == "__main__":
     for data in data_loader:
         continue
     a = jams.load("/import/c4dm-datasets/GuitarSet/annotation/00_BN1-129-Eb_comp.jams")
-    for tmp in a["annotations"]:
-        # print(tmp)
-        if tmp["namespace"] == "note_midi":
-            print(tmp)
+    # for tmp in a["annotations"]:
+    #     # print(tmp)
+    #     if tmp["namespace"] == "note_midi":
+    #         print(tmp)
