@@ -118,7 +118,7 @@ class Codec:
         offset = 0
         for er in self._event_ranges:
             if offset <= index <= offset + er.max_value - er.min_value:
-                return Event(type=er.type, value=er.min_value + index - offset)
+                return Event(type=er.type, value=int(er.min_value + index - offset))
             offset += er.max_value - er.min_value + 1
 
         raise ValueError(f"Unknown event index: {index}")
