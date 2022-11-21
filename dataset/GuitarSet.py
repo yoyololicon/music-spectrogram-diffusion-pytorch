@@ -4,8 +4,6 @@ import jams
 import os
 import tqdm
 import pickle
-import numpy as np
-from note_seq.protobuf import music_pb2
 from note_seq.midi_io import midi_to_note_sequence
 import pretty_midi
 
@@ -14,6 +12,27 @@ SR = 44100
 MEL_PARA_DICT={"n_mels":128, "center":False, "sample_rate":16000, "n_fft":640, "hop_length":320, "f_min":20.0, "f_max":None}
 
 
+
+def get_noteseq(title):
+    path = "/import/c4dm-datasets/GuitarSet"
+    tmp = jams.load(f"{path}/annotation/{title}.jams")
+    tmp = [i["data"] for i in tmp["annotations"] if i["namespace"]=="note_midi"]
+            
+    midi_data = pretty_midi.PrettyMIDI(initial_tempo=120)
+    for idx, note_list in enumerate(tmp):
+        exec(f"inst{idx} = pretty_midi.Instrument(program=25, is_drum=False, name='acoustic guitar (steel)')")
+        exec(f"midi_data.instruments.append(inst{idx})")
+        for note in note_list:
+            # print(note) #time duratioin value
+            pitch = int(note[2])
+            start, end = note[0], note[0] + note[1]
+            brend = int((note[2] - pitch) * 4096)
+            exec(f"inst{idx}.notes.append(pretty_midi.Note(120, pitch, start, end))")
+            exec(f"inst{idx}.pitch_bends.append(pretty_midi.PitchBend(brend, start))")
+            exec(f"inst{idx}.pitch_bends.append(pretty_midi.PitchBend(brend, end))")  
+    noteseq = midi_to_note_sequence(midi_data)
+    return noteseq
+    
 
 class MyDataset(torch.utils.data.Dataset): #padding等加在getterm #pad放在init #np_to_torch放在
     def __init__(self, path="/import/c4dm-datasets/GuitarSet"):
@@ -38,6 +57,7 @@ class MyDataset(torch.utils.data.Dataset): #padding等加在getterm #pad放在in
     
     def __len__(self): # 返回df的长度
         return len(self.data)
+    
     def __getitem__(self, idx): # 获取第idx+1列的数据
         title, time = self.data[idx]
         audio, sr = torchaudio.load(f"{self.path}/audio_mono-pickup_mix/{title}_mix.wav", frame_offset=int(SR*5.12*time), num_frames=int(SR*5.12))
@@ -52,16 +72,9 @@ class MyDataset(torch.utils.data.Dataset): #padding等加在getterm #pad放在in
             audio = torch.nn.functional.pad(audio, (0, int(5.12 * 16000 - audio.shape[1])))
         audio = self.audio2mel(audio)
         context = self.audio2mel(context)
-        
-        tmp = jams.load(f"{self.path}/annotation/{title}.jams")
-        tmp = [i["data"] for i in tmp["annotations"] if i["namespace"]=="note_midi"]
-                
-        noteseq = self.midi2noteseq(tmp)
-        return noteseq, context, audio
-        # return 0
+        return title, context, audio
     
     def audio2mel(self, input, melkwargs=MEL_PARA_DICT, pad=5.12):
-        # print(input)
         input = input.squeeze(0)
         if input.shape[0] < pad * 16000:
             input = torch.nn.functional.pad(input, (0, int(pad * 16000 - input.shape[0])))
@@ -70,23 +83,6 @@ class MyDataset(torch.utils.data.Dataset): #padding等加在getterm #pad放在in
         mel_spec = MelSpec(input)
         log_mel = amplitude_to_DB(mel_spec)
         return log_mel
-    
-    def midi2noteseq(self, tmp):
-        midi_data = pretty_midi.PrettyMIDI(initial_tempo=120)
-        for idx, note_list in enumerate(tmp):
-            exec(f"inst{idx} = pretty_midi.Instrument(program=25, is_drum=False, name='acoustic guitar (steel)')")
-            exec(f"midi_data.instruments.append(inst{idx})")
-            for note in note_list:
-                # print(note) #time duratioin value
-                pitch = int(note[2])
-                start, end = note[0], note[0] + note[1]
-                brend = int((note[2] - pitch) * 4096)
-                exec(f"inst{idx}.notes.append(pretty_midi.Note(120, pitch, start, end))")
-                exec(f"inst{idx}.pitch_bends.append(pretty_midi.PitchBend(brend, start))")
-                exec(f"inst{idx}.pitch_bends.append(pretty_midi.PitchBend(brend, end))")  
-        noteseq = midi_to_note_sequence(midi_data)
-        return midi_data #noteseq
-    
 
     # def collate_fn(batch):
     #     ### Select all data and label from batch
@@ -110,7 +106,6 @@ if __name__ == "__main__":
     data_loader = torch.utils.data.DataLoader(data_set, batch_size=1)
     for data in data_loader:
         continue
-        break
     a = jams.load("/import/c4dm-datasets/GuitarSet/annotation/00_BN1-129-Eb_comp.jams")
     for tmp in a["annotations"]:
         # print(tmp)
