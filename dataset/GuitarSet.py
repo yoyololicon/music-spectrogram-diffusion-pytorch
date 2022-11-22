@@ -58,7 +58,7 @@ class MyDataset(torch.utils.data.Dataset): #padding等加在getterm #pad放在in
         title, time = self.data[idx]
         audio, sr = torchaudio.load(f"{self.path}/audio_mono-pickup_mix/{title}_mix.wav", frame_offset=int(SR*5.12*time), num_frames=int(SR*5.12))
         if time==0:
-            context = torch.zeros((1, int(5.12*16000)))
+            context = torch.zeros((1, int(5.12*sr)))
         else:
             context, sr = torchaudio.load(f"{self.path}/audio_mono-pickup_mix/{title}_mix.wav", frame_offset=int(SR*5.12*(time-1)), num_frames=int(SR*5.12))
         transform = torchaudio.transforms.Resample(orig_freq=sr, new_freq=16000)
