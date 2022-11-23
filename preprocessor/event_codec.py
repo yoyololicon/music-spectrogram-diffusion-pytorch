@@ -17,7 +17,8 @@
 import dataclasses
 from typing import List, Tuple
 import torch
-
+import json
+import os
 
 @dataclasses.dataclass
 class EventRange:
@@ -67,6 +68,9 @@ class Codec:
         assert len(self._event_ranges) == len(
             set([er.type for er in self._event_ranges])
         )
+        folder = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(folder, "event_mapping.json"), "r") as f:
+            self.mapping = json.load(f)
 
     @property
     def num_classes(self) -> int:
@@ -90,18 +94,9 @@ class Codec:
 
     def encode_event(self, event: Event) -> int:
         """Encode an event to an index."""
-        offset = 0
-        for er in self._event_ranges:
-            if event.type == er.type:
-                if not er.min_value <= event.value <= er.max_value:
-                    raise ValueError(
-                        f"Event value {event.value} is not within valid range "
-                        f"[{er.min_value}, {er.max_value}] for type {event.type}"
-                    )
-                return offset + event.value - er.min_value
-            offset += er.max_value - er.min_value + 1
-
-        raise ValueError(f"Unknown event type: {event.type}")
+        event_type =  event.type
+        event_value = str(event.value)
+        return self.mapping[event_type][event_value]
 
     def event_type_range(self, event_type: str) -> Tuple[int, int]:
         """Return [min_id, max_id] for an event type."""
