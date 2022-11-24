@@ -4,6 +4,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint, ModelSummary
 
 from lightning import AutoregressiveLM, DiffusionLM
 from lightning.mock import MockData
+from lightning.data import ConcatData
 
 
 def cli_main():
