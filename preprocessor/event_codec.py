@@ -15,10 +15,11 @@
 """Encode and decode events."""
 
 import dataclasses
-from typing import List, Tuple
+from typing import Tuple, Optional, MutableMapping, MutableSet
 import torch
 import json
 import os
+import note_seq
 
 @dataclasses.dataclass
 class EventRange:
@@ -33,6 +34,47 @@ class Event:
     value: int
 
 
+@dataclasses.dataclass
+class NoteEventData:
+    pitch: int
+    velocity: Optional[int] = None
+    program: Optional[int] = None
+    is_drum: Optional[bool] = None
+    instrument: Optional[int] = None
+
+
+@dataclasses.dataclass
+class NoteEncodingState:
+    """Encoding state for note transcription, keeping track of active pitches."""
+
+    # velocity bin for active pitches and programs
+    active_pitches: MutableMapping[Tuple[int, int], int] = dataclasses.field(
+        default_factory=dict
+    )
+
+
+@dataclasses.dataclass
+class NoteDecodingState:
+  """Decoding state for note transcription."""
+  current_time: float = 0.0
+  # velocity to apply to subsequent pitch events (zero for note-off)
+  current_velocity: int = 100 
+  # program to apply to subsequent pitch events
+  current_program: int = 0
+  # onset time and velocity for active pitches and programs
+  active_pitches: MutableMapping[Tuple[int, int],
+                                 Tuple[float, int]] = dataclasses.field(
+                                     default_factory=dict)
+  # pitches (with programs) to continue from previous segment
+  tied_pitches: MutableSet[Tuple[int, int]] = dataclasses.field(
+      default_factory=set)
+  # whether or not we are in the tie section at the beginning of a segment
+  is_tie_section: bool = False
+  # partially-decoded NoteSequence
+  note_sequence: note_seq.NoteSequence = dataclasses.field(
+      default_factory=lambda: note_seq.NoteSequence(ticks_per_quarter=220))
+
+
 class Codec:
     """Encode and decode events.
 
@@ -45,12 +87,7 @@ class Codec:
     start at 0, that event type is required and specified separately.
     """
 
-    def __init__(
-        self,
-        max_shift_steps: int,
-        steps_per_second: float,
-        event_ranges: List[EventRange],
-    ):
+    def __init__(self):
         """Define Codec.
 
         Args:
@@ -59,28 +96,15 @@ class Codec:
               1 / steps_per_second.
           event_ranges: Other supported event types and their ranges.
         """
-        self.steps_per_second = steps_per_second
-        self._shift_range = EventRange(
-            type="shift", min_value=0, max_value=max_shift_steps
-        )
-        self._event_ranges = [self._shift_range] + event_ranges
-        # Ensure all event types have unique names.
-        assert len(self._event_ranges) == len(
-            set([er.type for er in self._event_ranges])
-        )
         folder = os.path.dirname(os.path.abspath(__file__))
         with open(os.path.join(folder, "event_mapping.json"), "r") as f:
-            self.mapping = json.load(f)
-
-    @property
-    def num_classes(self) -> int:
-        return sum(er.max_value - er.min_value + 1 for er in self._event_ranges)
-
-    # The next couple methods are simplified special case methods just for shift
-    # events that are intended to be used from within autograph functions.
+            self.encoding_mapping = json.load(f)
+            for type_ in self.encoding_mapping.keys():
+                self.encoding_mapping[type_] = {int(k): v for k, v in self.encoding_mapping[type_].items()}
+            self.decode_mapping = {v: (k, t) for t, m in self.encoding_mapping.items() for k, v in m.items()}
 
     def is_shift_event_index(self, index: int) -> bool:
-        return (self._shift_range.min_value <= index) and (index <= self._shift_range.max_value)
+        return self.decode_mapping[index][1] == 'shift' 
 
     def is_shift_event_index_torch(self, index: int) -> bool:
         return torch.logical_and(
@@ -88,32 +112,27 @@ class Codec:
             (index <= self._shift_range.max_value),
         )
 
-    @property
-    def max_shift_steps(self) -> int:
-        return self._shift_range.max_value
 
-    def encode_event(self, event: Event) -> int:
+    def encode_note(self, note: NoteEventData, velocity: int=None) -> int:
         """Encode an event to an index."""
-        event_type =  event.type
-        event_value = str(event.value)
-        return self.mapping[event_type][event_value]
+        velocity = int(note.velocity > 0) if velocity is None else velocity 
+        if note.is_drum:
+            return [
+                    self.encoding_mapping["velocity"][velocity], 
+                    self.encoding_mapping["drum"][note.pitch]
+            ]
+        else:
+            return [
+                self.encoding_mapping["program"][note.program],
+                self.encoding_mapping["velocity"][velocity],
+                self.encoding_mapping["pitch"][note.pitch]
+            ]
 
-    def event_type_range(self, event_type: str) -> Tuple[int, int]:
-        """Return [min_id, max_id] for an event type."""
-        offset = 0
-        for er in self._event_ranges:
-            if event_type == er.type:
-                return offset, offset + (er.max_value - er.min_value)
-            offset += er.max_value - er.min_value + 1
-
-        raise ValueError(f"Unknown event type: {event_type}")
+    def encode_event(self, event: Event):
+        return self.encoding_mapping[event.type][event.value]
 
     def decode_event_index(self, index: int) -> Event:
         """Decode an event index to an Event."""
-        offset = 0
-        for er in self._event_ranges:
-            if offset <= index <= offset + er.max_value - er.min_value:
-                return Event(type=er.type, value=int(er.min_value + index - offset))
-            offset += er.max_value - er.min_value + 1
-
-        raise ValueError(f"Unknown event index: {index}")
+        index = int(index.item())
+        value, type = self.decode_mapping[index]
+        return Event(type=type, value=value)

@@ -1,41 +1,12 @@
-import dataclasses
-import json
-import os
-import time
 import note_seq
 import numpy as np
 import torch
 from typing import Any, Callable, MutableMapping, Optional, Sequence, Tuple, TypeVar
-import torch.nn.functional as F
 
-from . import vocabularies
-from .event_codec import Codec, Event
+from .event_codec import Codec, Event, NoteEventData, NoteEncodingState, NoteDecodingState
 
 
-folder = os.path.dirname(os.path.abspath(__file__))
-with open(os.path.join(folder, "event_mapping.json"), "r") as f:
-    EVENT_MAPPING = json.load(f)
-    for type_ in EVENT_MAPPING.keys():
-        EVENT_MAPPING[type_] = {int(k): v for k, v in EVENT_MAPPING[type_].items()}
-
-@dataclasses.dataclass
-class NoteEventData:
-    pitch: int
-    velocity: Optional[int] = None
-    program: Optional[int] = None
-    is_drum: Optional[bool] = None
-    instrument: Optional[int] = None
-
-
-@dataclasses.dataclass
-class NoteEncodingState:
-    """Encoding state for note transcription, keeping track of active pitches."""
-
-    # velocity bin for active pitches and programs
-    active_pitches: MutableMapping[Tuple[int, int], int] = dataclasses.field(
-        default_factory=dict
-    )
-
+CODEC = Codec()
 
 def note_sequence_to_onsets_and_offsets_and_programs(
     ns: note_seq.NoteSequence,
@@ -62,40 +33,15 @@ def note_sequence_to_onsets_and_offsets_and_programs(
     return times, values
 
 
-def note_event_data_to_events(
-    state: Optional[Any],
-    value: NoteEventData,
-    codec: Codec = None,
-) -> Sequence[Event]:
-    """Convert note event data to a sequence of events."""
-    #num_velocity_bins = vocabularies.num_velocity_bins_from_codec(codec)
-    velocity_bin = vocabularies.velocity_to_bin(value.velocity, 1)
-    if value.is_drum:
-        # drum events use a separate vocabulary
-        # return [Event("velocity", velocity_bin), Event("drum", value.pitch)]
-        return np.array([
-                EVENT_MAPPING["velocity"][velocity_bin], 
-                EVENT_MAPPING["drum"][value.pitch]
-        ])
-    else:
-        # program + velocity + pitch
-        if state is not None:
-            state.active_pitches[(value.pitch, value.program)] = velocity_bin
-        return [
-            EVENT_MAPPING["program"][value.program],
-            EVENT_MAPPING["velocity"][velocity_bin],
-            EVENT_MAPPING["pitch"][value.pitch]
-        ]
-
-
-def note_encoding_state_to_events(state: NoteEncodingState, offset_value=EVENT_MAPPING['velocity'][0]) -> Sequence[Event]:
+def note_encoding_state_to_events(state: NoteEncodingState, codec: Codec) -> Sequence[Event]:
     """Output program and pitch events for active notes plus a final tie event."""
     events = []
+    offset_value = codec.encode_event(Event(type="velocity", value=0))
     for pitch, program in sorted(state.active_pitches.keys(), key=lambda k: k[::-1]):
         if state.active_pitches[(pitch, program)] != offset_value:
             # events += [Event("program", program), Event("pitch", pitch)]
             events += [program, pitch]
-    events.append(EVENT_MAPPING["tie"][0])
+    events.append(codec.encode_event(Event(type="tie", value=0)))
     return events
 
 
@@ -106,22 +52,19 @@ def read_midi(filename):
     return ns 
 
 
-def tokenize(ns, frame_rate):
+def tokenize(ns: note_seq.NoteSequence, frame_rate: int, codec: Codec):
     notes = sorted(ns.notes, key=lambda note: (note.is_drum, note.program, note.pitch))
-    times = [note.end_time*frame_rate for note in notes if not note.is_drum] + [
-        note.start_time*frame_rate for note in notes
-    ]
-    def get_values(note):
-        if note.is_drum:
-            return [EVENT_MAPPING["velocity"][int(note.velocity > 0)], EVENT_MAPPING["pitch"][note.pitch]]
-        return [EVENT_MAPPING["program"][note.program], EVENT_MAPPING["velocity"][int(note.velocity > 0)], EVENT_MAPPING["pitch"][note.pitch]]
-    
+    # times = [note.end_time*frame_rate for note in notes if not note.is_drum] + [
+    #     note.start_time*frame_rate for note in notes
+    # ]
+    offset_times = np.round([note.end_time*frame_rate for note in notes if not note.is_drum])
+    onset_times = np.round([note.start_time*frame_rate for note in notes])
+    times = np.concatenate((offset_times, onset_times), axis=0).astype(int)
+   
     values = [
-        [EVENT_MAPPING["program"][note.program], EVENT_MAPPING["velocity"][0], EVENT_MAPPING["pitch"][note.pitch]]
-        for note in notes
-        if not note.is_drum
-    ] + [get_values(note) for note in notes]
-    return np.round(times).astype(int), values
+        codec.encode_note(note, velocity=0) for note in notes if not note.is_drum
+    ] + [codec.encode_note(note) for note in notes]
+    return times, values
 
 
 def quantize_time(times, frame_length):
@@ -134,13 +77,14 @@ def update_state(ds: NoteEncodingState, events):
     for event in events[non_drum_idx]:
         ds.active_pitches[(event[0], event[-1])] = event[1]
 
-def preprocess(ns, resolution=100, segment_length=5.12, output_size=2048):
+
+def preprocess(ns, resolution=100, segment_length=5.12, output_size=2048, codec=CODEC):
     segment_length = np.ceil(segment_length * resolution).astype(int)
-    steps, values = tokenize(ns, resolution)
+    steps, values = tokenize(ns, resolution, codec)
     stamps = np.unique(steps)
     num_segments = np.ceil(stamps[-1]/segment_length).astype(int)
     events = {}
-    state_events = {0: [EVENT_MAPPING["tie"][0]]}
+    state_events = {0: [codec.encode_event(Event(type="tie", value=0))]}
     ds = NoteEncodingState()
     segments, shifts = np.divmod(stamps, segment_length)
     change_points = np.zeros_like(segments)
@@ -152,11 +96,11 @@ def preprocess(ns, resolution=100, segment_length=5.12, output_size=2048):
         event = events.get(segment_num, [])
         event = event + [shift_num] + [v for e in event_values for v in e]
         events[segment_num] = event
-        for event in event_values:
-            if len(event) == 3:
-                ds.active_pitches[(event[0], event[-1])] = event[1]
+        for value in event_values:
+            if len(value) == 3:
+                ds.active_pitches[(value[-1], value[0])] = value[1]
         if (change_points[i]):
-            state_event = note_encoding_state_to_events(ds)
+            state_event = note_encoding_state_to_events(ds, codec)
             state_events[segment_num + 1] = state_event
     tokens = torch.zeros(num_segments, output_size)
     for k, v in events.items():
@@ -165,37 +109,183 @@ def preprocess(ns, resolution=100, segment_length=5.12, output_size=2048):
     return tokens
 
 
-def preprocess_torch(ns, resolution=100, segment_length=5.12, output_size=2048):
-    segment_length = np.ceil(segment_length * resolution).astype(int)
-    steps, values = tokenize(ns, resolution)
-    values = torch.Tensor(values).int()
-    steps = torch.Tensor(steps).int()
-    stamps = torch.unique(steps)
-    num_segments = np.ceil(stamps[-1].item()/segment_length).astype(int)
-    events = torch.zeros(num_segments, output_size)
-    event_count = torch.zeros(num_segments).int()
-    state_events = torch.zeros(num_segments+1, output_size)
-    state_events[0, 0] = EVENT_MAPPING["tie"][0]
-    ds = NoteEncodingState()
-    start_time = time.time()
-    for stamp in stamps:
-        segment_num = int(stamp // segment_length)
-        event_idx = np.nonzero(steps == stamp)[0]
-        event_values = values[event_idx]
-        event_start_idx = event_count[segment_num]
-        event_values = values[event_idx]
-        valid_events = event_values != -1
-        event_end_idx = int(event_start_idx + valid_events.sum() + 1)
-        events[segment_num][event_start_idx] = stamp % segment_length
-        events[segment_num][event_start_idx+1:event_end_idx] = event_values[valid_events]
-        event_count[segment_num] = event_end_idx
-        for event in event_values[valid_events[:, 0]]:
-            ds.active_pitches[(event[0].item(), event[-1].item())] = event[1].item()
-        state_event = note_encoding_state_to_events(ds)
-        state_events[segment_num + 1] = F.pad(torch.Tensor(state_event), (0, output_size-len(state_event))) 
-    print(time.time() - start_time)
-    for i in range(num_segments):
-        token = state_events[i]
-        start_idx = (token != 0).sum()
-        token[start_idx:start_idx+event_count[i]] = events[i][:event_count[i]] 
-    return state_events[:-1] 
+############################################################################
+#                       Decoding Functions                                 # 
+############################################################################
+
+def decode_events(
+    state: Any,
+    tokens: np.ndarray,
+    start_time: int,
+    max_time: Optional[int],
+    codec: Codec,
+    resolution: int, 
+    decode_event_fn: Callable[[Any, float, Event, Codec],
+                              None],
+) -> Tuple[int, int]:
+  """Decode a series of tokens, maintaining a decoding state object.
+
+  Args:
+    state: Decoding state object; will be modified in-place.
+    tokens: event tokens to convert.
+    start_time: offset start time if decoding in the middle of a sequence.
+    max_time: Events at or beyond this time will be dropped.
+    codec: An event_codec.Codec object that maps indices to Event objects.
+    decode_event_fn: Function that consumes an Event (and the current time) and
+        updates the decoding state.
+
+  Returns:
+    invalid_events: number of events that could not be decoded.
+    dropped_events: number of events dropped due to max_time restriction.
+  """
+  invalid_events = 0
+  dropped_events = 0
+  cur_steps = 0
+  cur_time = start_time
+  token_idx = 0
+  for token_idx, token in enumerate(tokens):
+    try:
+      event = codec.decode_event_index(token)
+    except ValueError:
+      invalid_events += 1
+      continue
+    if event.type == 'shift':
+      cur_steps += event.value
+      cur_time = start_time + cur_steps / resolution
+      if max_time and cur_time > max_time:
+        dropped_events = len(tokens) - token_idx
+        break
+    else:
+      cur_steps = 0
+      try:
+        decode_event_fn(state, cur_time, event)
+      except ValueError as e:
+        invalid_events += 1
+        continue
+  return invalid_events, dropped_events
+
+
+def decode_note_event(
+    state: NoteDecodingState,
+    time: float,
+    event: Event,
+) -> None:
+  """Process note event and update decoding state."""
+  if time < state.current_time:
+    raise ValueError('event time < current time, %f < %f' % (
+        time, state.current_time))
+  state.current_time = time
+  if event.type == 'pitch':
+    pitch = event.value
+    if state.is_tie_section:
+      # "tied" pitch
+      if (pitch, state.current_program) not in state.active_pitches:
+        raise ValueError('inactive pitch/program in tie section: %d/%d' %
+                         (pitch, state.current_program))
+      if (pitch, state.current_program) in state.tied_pitches:
+        raise ValueError('pitch/program is already tied: %d/%d' %
+                         (pitch, state.current_program))
+      state.tied_pitches.add((pitch, state.current_program))
+    elif state.current_velocity == 0:
+      # note offset
+      if (pitch, state.current_program) not in state.active_pitches:
+        raise ValueError('note-off for inactive pitch/program: %d/%d' %
+                         (pitch, state.current_program))
+      onset_time, onset_velocity = state.active_pitches.pop(
+          (pitch, state.current_program))
+      _add_note_to_sequence(
+          state.note_sequence, start_time=onset_time, end_time=time,
+          pitch=pitch, velocity=onset_velocity, program=state.current_program)
+    else:
+      # note onset
+      if (pitch, state.current_program) in state.active_pitches:
+        # The pitch is already active; this shouldn't really happen but we'll
+        # try to handle it gracefully by ending the previous note and starting a
+        # new one.
+        onset_time, onset_velocity = state.active_pitches.pop(
+            (pitch, state.current_program))
+        _add_note_to_sequence(
+            state.note_sequence, start_time=onset_time, end_time=time,
+            pitch=pitch, velocity=onset_velocity, program=state.current_program)
+      state.active_pitches[(pitch, state.current_program)] = (
+          time, state.current_velocity)
+  elif event.type == 'drum':
+    # drum onset (drums have no offset)
+    if state.current_velocity == 0:
+      raise ValueError('velocity cannot be zero for drum event')
+    offset_time = time + 0.01
+    _add_note_to_sequence(
+        state.note_sequence, start_time=time, end_time=offset_time,
+        pitch=event.value, velocity=state.current_velocity, is_drum=True)
+  elif event.type == 'velocity':
+    # velocity change
+    state.current_velocity = event.value
+  elif event.type == 'program':
+    # program change
+    state.current_program = event.value
+  elif event.type == 'tie':
+    # end of tie section; end active notes that weren't declared tied
+    if not state.is_tie_section:
+      raise ValueError('tie section end event when not in tie section')
+    for (pitch, program) in list(state.active_pitches.keys()):
+      if (pitch, program) not in state.tied_pitches:
+        onset_time, onset_velocity = state.active_pitches.pop((pitch, program))
+        _add_note_to_sequence(
+            state.note_sequence,
+            start_time=onset_time, end_time=state.current_time,
+            pitch=pitch, velocity=onset_velocity, program=program)
+    state.is_tie_section = False
+  else:
+    raise ValueError('unexpected event type: %s' % event.type)
+
+
+def assign_instruments(ns: note_seq.NoteSequence) -> None:
+  """Assign instrument numbers to notes; modifies NoteSequence in place."""
+  program_instruments = {}
+  for note in ns.notes:
+    if note.program not in program_instruments and not note.is_drum:
+      num_instruments = len(program_instruments)
+      note.instrument = (num_instruments if num_instruments < 9
+                         else num_instruments + 1)
+      program_instruments[note.program] = note.instrument
+    elif note.is_drum:
+      note.instrument = 9
+    else:
+      note.instrument = program_instruments[note.program]
+
+
+def flush_note_decoding_state(
+    state: NoteDecodingState
+) -> note_seq.NoteSequence:
+  """End all active notes and return resulting NoteSequence."""
+  for onset_time, _ in state.active_pitches.values():
+    state.current_time = max(state.current_time, onset_time + 0.01)
+  for (pitch, program) in list(state.active_pitches.keys()):
+    onset_time, onset_velocity = state.active_pitches.pop((pitch, program))
+    _add_note_to_sequence(
+        state.note_sequence, start_time=onset_time, end_time=state.current_time,
+        pitch=pitch, velocity=onset_velocity, program=program)
+  assign_instruments(state.note_sequence)
+  return state.note_sequence
+
+
+def tokens_to_notes(tokens, codec):
+    decoding_state = NoteDecodingState()
+    decoding_state.is_tie_section = True
+    decoding_state.current_velocity = 0
+    decode_events(
+        state=decoding_state, tokens=tokens, start_time=0, max_time=None,
+        codec=codec, resolution=100, decode_event_fn=decode_note_event)
+    return flush_note_decoding_state(decoding_state)
+
+
+def _add_note_to_sequence(
+    ns: note_seq.NoteSequence,
+    start_time: float, end_time: float, pitch: int, velocity: int,
+    program: int = 0, is_drum: bool = False
+) -> None:
+  end_time = max(end_time, start_time + 0.01)
+  ns.notes.add(
+      start_time=start_time, end_time=end_time,
+      pitch=pitch, velocity=velocity, program=program, is_drum=is_drum)
+  ns.total_time = max(ns.total_time, end_time)
