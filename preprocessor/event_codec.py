@@ -16,9 +16,6 @@
 
 import dataclasses
 from typing import Tuple, Optional, MutableMapping, MutableSet
-import torch
-import json
-import os
 import note_seq
 
 @dataclasses.dataclass
@@ -87,31 +84,34 @@ class Codec:
     start at 0, that event type is required and specified separately.
     """
 
-    def __init__(self):
+    def __init__(self, steps_per_segment):
         """Define Codec.
 
         Args:
-          max_shift_steps: Maximum number of shift steps that can be encoded.
-          steps_per_second: Shift steps will be interpreted as having a duration of
-              1 / steps_per_second.
           event_ranges: Other supported event types and their ranges.
         """
-        folder = os.path.dirname(os.path.abspath(__file__))
-        with open(os.path.join(folder, "event_mapping.json"), "r") as f:
-            self.encoding_mapping = json.load(f)
-            for type_ in self.encoding_mapping.keys():
-                self.encoding_mapping[type_] = {int(k): v for k, v in self.encoding_mapping[type_].items()}
-            self.decode_mapping = {v: (k, t) for t, m in self.encoding_mapping.items() for k, v in m.items()}
+        mapping = dict()
+        offset = 0
+        shift_tokens = {t: t for t in range(steps_per_segment + 1)}
+        offset += steps_per_segment + 1
+        mapping["shift"] = shift_tokens
+        pitch_tokens = {p: p - note_seq.MIN_MIDI_PITCH + offset for p in range(note_seq.MIN_MIDI_PITCH, note_seq.MAX_MIDI_PITCH + 1)}
+        offset += note_seq.MAX_MIDI_PITCH - note_seq.MIN_MIDI_PITCH + 1
+        mapping["pitch"] = pitch_tokens
+        mapping["velocity"] = {0: offset, 1: offset + 1}
+        mapping["tie"] = {0: offset + 2}
+        offset += 3
+        program_tokens = {p: p - note_seq.MIN_MIDI_PROGRAM + offset for p in range(note_seq.MIN_MIDI_PROGRAM, note_seq.MAX_MIDI_PROGRAM + 1)}
+        offset += note_seq.MAX_MIDI_PROGRAM - note_seq.MIN_MIDI_PROGRAM + 1
+        mapping["program"] = program_tokens
+        drum_tokens = {p: p - note_seq.MIN_MIDI_PITCH + offset for p in range(note_seq.MIN_MIDI_PITCH, note_seq.MAX_MIDI_PITCH + 1)}
+        mapping["drum"] = drum_tokens 
 
+        self.encoding_mapping = mapping
+        self.decode_mapping = {v: (k, t) for t, m in self.encoding_mapping.items() for k, v in m.items()}
+        
     def is_shift_event_index(self, index: int) -> bool:
         return self.decode_mapping[index][1] == 'shift' 
-
-    def is_shift_event_index_torch(self, index: int) -> bool:
-        return torch.logical_and(
-            (self._shift_range.min_value <= index),
-            (index <= self._shift_range.max_value),
-        )
-
 
     def encode_note(self, note: NoteEventData, velocity: int=None) -> int:
         """Encode an event to an index."""
@@ -133,6 +133,5 @@ class Codec:
 
     def decode_event_index(self, index: int) -> Event:
         """Decode an event index to an Event."""
-        index = int(index.item())
         value, type = self.decode_mapping[index]
         return Event(type=type, value=value)
