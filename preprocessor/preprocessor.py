@@ -12,33 +12,7 @@ from .event_codec import (
 )
 
 
-CODEC = Codec()
-
-
-def note_sequence_to_onsets_and_offsets_and_programs(
-    ns: note_seq.NoteSequence,
-) -> Tuple[Sequence[float], Sequence[NoteEventData]]:
-    # Sort by program and pitch and put offsets before onsets as a tiebreaker for
-    # subsequent stable sort.
-    notes = sorted(ns.notes, key=lambda note: (note.is_drum, note.program, note.pitch))
-    times = [note.end_time for note in notes if not note.is_drum] + [
-        note.start_time for note in notes
-    ]
-    values = [
-        NoteEventData(pitch=note.pitch, velocity=0, program=note.program, is_drum=False)
-        for note in notes
-        if not note.is_drum
-    ] + [
-        NoteEventData(
-            pitch=note.pitch,
-            velocity=note.velocity,
-            program=note.program,
-            is_drum=note.is_drum,
-        )
-        for note in notes
-    ]
-    return times, values
-
+CODEC = Codec(512)
 
 def note_encoding_state_to_events(
     state: NoteEncodingState, codec: Codec
@@ -76,17 +50,6 @@ def tokenize(ns: note_seq.NoteSequence, frame_rate: int, codec: Codec):
         codec.encode_note(note, velocity=0) for note in notes if not note.is_drum
     ] + [codec.encode_note(note) for note in notes]
     return times, values
-
-
-def quantize_time(times, frame_length):
-    steps = np.round(np.array(times) / frame_length)
-    return steps.astype(int)
-
-
-def update_state(ds: NoteEncodingState, events):
-    non_drum_idx = events[:, 0] != -1
-    for event in events[non_drum_idx]:
-        ds.active_pitches[(event[0], event[-1])] = event[1]
 
 
 def preprocess(ns, resolution=100, segment_length=5.12, output_size=2048, codec=CODEC):
@@ -173,7 +136,7 @@ def decode_events(
     token_idx = 0
     for token_idx, token in enumerate(tokens):
         try:
-            event = codec.decode_event_index(token)
+            event = codec.decode_event_index(int(token.item()))
         except ValueError:
             invalid_events += 1
             continue
