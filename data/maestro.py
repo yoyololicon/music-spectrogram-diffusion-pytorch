@@ -16,6 +16,8 @@ class Maestro(Base):
     ):
         path = Path(path)
         meta_file = path / "maestro-v3.0.0.json"
+        if split == "val" or split == "valid":
+            split = "validation"
         with open(meta_file, "r") as f:
             meta = json.load(f)
         track_ids = [k for k, v in meta["split"].items() if v == split]
