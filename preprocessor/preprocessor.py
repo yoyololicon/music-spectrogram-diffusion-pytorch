@@ -80,7 +80,7 @@ def preprocess(ns, resolution=100, segment_length=5.12, output_size=2048, codec=
         event_idx = np.nonzero(steps == stamp)[0]
         event_values = [values[i] for i in event_idx]
         event = events.get(segment_num, [])
-        event = event + [shift_num] + [v for e in event_values for v in e]
+        event = event + ([shift_num] * (shift_num > 0)) + [v for e in event_values for v in e]
         events[segment_num] = event
         for value in event_values:
             if len(value) == 3:
