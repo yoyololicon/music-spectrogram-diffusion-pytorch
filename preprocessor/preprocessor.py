@@ -91,7 +91,7 @@ def preprocess(ns, resolution=100, segment_length=5.12, output_size=2048, codec=
     tokens = torch.zeros(num_segments, output_size)
     for k, v in events.items():
         all_events = torch.Tensor(state_events[k] + v)
-        tokens[k][: len(all_events)] = all_events
+        tokens[k, :len(all_events)] = all_events
     segment_time = segment_length / resolution
     segment_times = [
         (i * segment_time, (i + 1) * segment_time) for i in range(num_segments - 1)
