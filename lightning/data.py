@@ -2,6 +2,8 @@ import pytorch_lightning as pl
 from torch.utils.data import DataLoader, ConcatDataset
 from data.mock import MockSpecDataset, MockAudioDataset
 from data.musicnet import MusicNet
+from data.maestro import Maestro
+from preprocessor.event_codec import Codec
 
 
 class ConcatData(pl.LightningDataModule):
@@ -21,16 +23,28 @@ class ConcatData(pl.LightningDataModule):
         self.save_hyperparameters()
 
     def setup(self, stage=None):
+        resolution = 100
+        segment_length_in_time = self.hparams.segment_length / self.hparams.sample_rate
+        codec = Codec(int(segment_length_in_time * resolution + 1))
+
         if stage == "fit" or stage is None:
             train_datasets = []
             val_datasets = []
             if self.hparams.musicnet_path is not None:
-                train_datasets.append(MusicNet(path=self.hparams.musicnet_path, split='train',
+                train_datasets.append(MusicNet(path=self.hparams.musicnet_path, split='train', codec=codec, resolution=resolution, output_size=3000,
                                                sample_rate=self.hparams.sample_rate, segment_length=self.hparams.segment_length,
                                                with_context=self.hparams.with_context))
-                val_datasets.append(MusicNet(path=self.hparams.musicnet_path, split='val',
+                val_datasets.append(MusicNet(path=self.hparams.musicnet_path, split='val', codec=codec, resolution=resolution, output_size=3000,
                                              sample_rate=self.hparams.sample_rate, segment_length=self.hparams.segment_length,
                                              with_context=self.hparams.with_context))
+
+            if self.hparams.maestro_path is not None:
+                train_datasets.append(Maestro(path=self.hparams.maestro_path, split='train', codec=codec, resolution=resolution, output_size=3000,
+                                              sample_rate=self.hparams.sample_rate, segment_length=self.hparams.segment_length,
+                                              with_context=self.hparams.with_context))
+                val_datasets.append(Maestro(path=self.hparams.maestro_path, split='val', codec=codec, resolution=resolution, output_size=3000,
+                                            sample_rate=self.hparams.sample_rate, segment_length=self.hparams.segment_length,
+                                            with_context=self.hparams.with_context))
 
             self.train_dataset = ConcatDataset(train_datasets)
             self.val_dataset = ConcatDataset(val_datasets)
@@ -38,9 +52,14 @@ class ConcatData(pl.LightningDataModule):
         if stage == "test":
             test_datasets = []
             if self.hparams.musicnet_path is not None:
-                test_datasets.append(MusicNet(path=self.hparams.musicnet_path, split='test',
+                test_datasets.append(MusicNet(path=self.hparams.musicnet_path, split='test', codec=codec, resolution=resolution, output_size=3000,
                                               sample_rate=self.hparams.sample_rate, segment_length=self.hparams.segment_length,
                                               with_context=self.hparams.with_context))
+
+            if self.hparams.maestro_path is not None:
+                test_datasets.append(Maestro(path=self.hparams.maestro_path, split='test', codec=codec, resolution=resolution, output_size=3000,
+                                             sample_rate=self.hparams.sample_rate, segment_length=self.hparams.segment_length,
+                                             with_context=self.hparams.with_context))
 
             self.test_dataset = ConcatDataset(test_datasets)
 
