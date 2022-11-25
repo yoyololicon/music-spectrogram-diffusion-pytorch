@@ -5,29 +5,40 @@ from pathlib import Path
 import resampy
 import numpy as np
 from typing import Tuple, Union, Optional, List, Dict, Any
+from note_seq import NoteSequence
+from tqdm import tqdm
+
 from preprocessor.event_codec import Codec
+from preprocessor.preprocessor import preprocess
 
 
 class Base(Dataset):
     def __init__(self,
-                 data_list: List[Tuple[Path, Union[np.ndarray, torch.Tensor], int, int]],
+                 data_list: List[Tuple[Path, NoteSequence, int, int]],
+                 codec: Codec,
                  sample_rate: int = None,
                  segment_length: int = 81920,
-                 with_context: bool = False):
+                 with_context: bool = False,
+                 **kwargs):
         super().__init__()
 
         boundaries = [0]
         self.data_list = []
-        for filename, midi, sr, frames in data_list:
+
+        print("Preprocessing data...")
+        for filename, midi, sr, frames in tqdm(data_list):
             if sample_rate is None:
                 segment_length_in_time = segment_length / sr
             else:
                 segment_length_in_time = segment_length / sample_rate
-            num_chunks = frames // (segment_length_in_time * sr)
+            num_chunks = int(frames / (segment_length_in_time * sr))
+            tokens, _ = preprocess(
+                midi, segment_length=segment_length_in_time, codec=codec, **kwargs)
+            num_chunks = min(num_chunks, tokens.shape[0])
             boundaries.append(boundaries[-1] + num_chunks)
-            self.data_list.append((filename, midi, sr, segment_length_in_time))
+            self.data_list.append(
+                (filename, tokens, sr, segment_length_in_time))
 
-        self.data_list = data_list
         self.boundaries = np.array(boundaries)
         self.sr = sample_rate
         self.segment_length = segment_length
@@ -69,12 +80,13 @@ class Base(Dataset):
 
     def __getitem__(self, index: int) -> torch.Tensor:
         file_idx, chunk_idx = self._get_file_idx_and_chunk_idx(index)
-        tokens = None
+        tokens = self.data_list[file_idx][1][chunk_idx]
 
         if not self.with_context:
             data = self._get_waveforms(file_idx, chunk_idx)
             if data.shape[0] != self.segment_length:
-                data = resampy.resample(data, data.shape[0], self.segment_length, axis=0, filter='kaiser_fast')[:self.segment_length]
+                data = resampy.resample(data, data.shape[0], self.segment_length, axis=0, filter='kaiser_fast')[
+                    :self.segment_length]
                 if data.shape[0] < self.segment_length:
                     data = np.pad(
                         data, ((0, self.segment_length - data.shape[0]),), 'constant')
