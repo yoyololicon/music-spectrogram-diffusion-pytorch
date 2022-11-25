@@ -70,11 +70,11 @@ def preprocess(ns, resolution=100, segment_length=5.12, output_size=2048, codec=
     segment_length = np.ceil(segment_length * resolution).astype(int)
     steps, values = tokenize(ns, resolution, codec)
     stamps = np.unique(steps)
-    num_segments = np.ceil(stamps[-1] / segment_length).astype(int)
     events = {}
     state_events = {0: [codec.encode_event(Event(type="tie", value=0))]}
     ds = NoteEncodingState()
     segments, shifts = np.divmod(stamps, segment_length)
+    num_segments = segments.max() + 1
     change_points = np.zeros_like(segments)
     change_points[:-1] = segments[1:] != segments[:-1]
     for i, stamp in enumerate(stamps):
