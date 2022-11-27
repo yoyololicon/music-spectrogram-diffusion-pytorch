@@ -14,6 +14,7 @@ from .event_codec import (
 
 CODEC = Codec(512)
 
+
 def note_encoding_state_to_events(
     state: NoteEncodingState, codec: Codec
 ) -> Sequence[Event]:
@@ -36,7 +37,8 @@ def read_midi(filename):
 
 
 def tokenize(ns: note_seq.NoteSequence, frame_rate: int, codec: Codec):
-    notes = sorted(ns.notes, key=lambda note: (note.is_drum, note.program, note.pitch))
+    notes = sorted(ns.notes, key=lambda note: (
+        note.is_drum, note.program, note.pitch))
     # times = [note.end_time*frame_rate for note in notes if not note.is_drum] + [
     #     note.start_time*frame_rate for note in notes
     # ]
@@ -68,11 +70,11 @@ def preprocess(ns, resolution=100, segment_length=5.12, output_size=2048, codec=
     segment_length = np.ceil(segment_length * resolution).astype(int)
     steps, values = tokenize(ns, resolution, codec)
     stamps = np.unique(steps)
-    num_segments = np.ceil(stamps[-1] / segment_length).astype(int)
     events = {}
     state_events = {0: [codec.encode_event(Event(type="tie", value=0))]}
     ds = NoteEncodingState()
     segments, shifts = np.divmod(stamps, segment_length)
+    num_segments = segments.max() + 1
     change_points = np.zeros_like(segments)
     change_points[:-1] = segments[1:] != segments[:-1]
     for i, stamp in enumerate(stamps):
@@ -80,7 +82,8 @@ def preprocess(ns, resolution=100, segment_length=5.12, output_size=2048, codec=
         event_idx = np.nonzero(steps == stamp)[0]
         event_values = [values[i] for i in event_idx]
         event = events.get(segment_num, [])
-        event = event + ([shift_num] * (shift_num > 0)) + [v for e in event_values for v in e]
+        event = event + ([shift_num] * (shift_num > 0)) + \
+            [v for e in event_values for v in e]
         events[segment_num] = event
         for value in event_values:
             if len(value) == 3:
@@ -88,10 +91,10 @@ def preprocess(ns, resolution=100, segment_length=5.12, output_size=2048, codec=
         if change_points[i]:
             state_event = note_encoding_state_to_events(ds, codec)
             state_events[segment_num + 1] = state_event
-    tokens = torch.zeros(num_segments, output_size)
+    tokens = torch.zeros(num_segments, output_size, dtype=torch.long)
     for k, v in events.items():
-        all_events = torch.Tensor(state_events[k] + v)
-        tokens[k][: len(all_events)] = all_events
+        all_events = torch.Tensor(state_events.get(k, []) + v)
+        tokens[k, :len(all_events)] = all_events
     segment_time = segment_length / resolution
     segment_times = [
         (i * segment_time, (i + 1) * segment_time) for i in range(num_segments - 1)
@@ -246,7 +249,8 @@ def decode_note_event(
             raise ValueError("tie section end event when not in tie section")
         for (pitch, program) in list(state.active_pitches.keys()):
             if (pitch, program) not in state.tied_pitches:
-                onset_time, onset_velocity = state.active_pitches.pop((pitch, program))
+                onset_time, onset_velocity = state.active_pitches.pop(
+                    (pitch, program))
                 _add_note_to_sequence(
                     state.note_sequence,
                     start_time=onset_time,
