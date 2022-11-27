@@ -93,7 +93,8 @@ def preprocess(ns, resolution=100, segment_length=5.12, output_size=2048, codec=
             state_events[segment_num + 1] = state_event
     tokens = torch.zeros(num_segments, output_size, dtype=torch.long)
     for k, v in events.items():
-        all_events = torch.Tensor(state_events.get(k, []) + v)
+        filtered_events = _filter_tokens(state_events.get(k, []) + v, codec)
+        all_events = torch.tensor(filtered_events)
         tokens[k, :len(all_events)] = all_events
     segment_time = segment_length / resolution
     segment_times = [
@@ -101,6 +102,37 @@ def preprocess(ns, resolution=100, segment_length=5.12, output_size=2048, codec=
     ]
     segment_times.append(((num_segments - 1) * segment_time, ns.total_time))
     return tokens, torch.Tensor(segment_times)
+
+
+def _filter_tokens(tokens: Sequence[int], codec: Codec) -> Sequence[int]:
+    cur_t = 0
+    current_program = -1
+    is_on = None
+    filtered_tokens = []
+    for token in tokens:
+        event = codec.decode_event_index(token)
+        if event.type == 'shift' and event.value != cur_t:
+            filtered_tokens.append(token)
+            cur_t = event.value
+            current_program = -1
+            is_on = None
+        elif event.type == 'program' and event.value != current_program:
+            filtered_tokens.append(token)
+            current_program = event.value
+            is_on = None
+        elif event.type == 'velocity' and event.value == 0 and is_on is None:
+            filtered_tokens.append(token)
+            is_on = False
+        elif event.type == 'velocity' and event.value == 1 and not is_on:
+            filtered_tokens.append(token)
+            is_on = True
+        elif event.type in ['pitch', 'drum', 'tie']:
+            filtered_tokens.append(token)
+            if event.type == 'tie':
+                current_program = -1
+                is_on = None
+
+    return filtered_tokens
 
 
 ############################################################################
