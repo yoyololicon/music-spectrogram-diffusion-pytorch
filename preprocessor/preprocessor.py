@@ -37,20 +37,21 @@ def read_midi(filename):
 
 
 def tokenize(ns: note_seq.NoteSequence, frame_rate: int, codec: Codec):
-    notes = sorted(ns.notes, key=lambda note: (
-        note.is_drum, note.program, note.pitch))
-    # times = [note.end_time*frame_rate for note in notes if not note.is_drum] + [
-    #     note.start_time*frame_rate for note in notes
-    # ]
-    offset_times = np.round(
-        [note.end_time * frame_rate for note in notes if not note.is_drum]
-    )
-    onset_times = np.round([note.start_time * frame_rate for note in notes])
-    times = np.concatenate((offset_times, onset_times), axis=0).astype(int)
+    note_tuples = []
+    for note in ns.notes:
+        start = round(note.start_time * frame_rate)
+        end = round(note.end_time * frame_rate)
+        if start == end:
+            end += 1
+        if not note.is_drum:
+            note_tuples.append(
+                (end, note.is_drum, note.program, 0,  note.pitch))
+        note_tuples.append((start, note.is_drum, note.program, 1, note.pitch))
 
-    values = [
-        codec.encode_note(note, velocity=0) for note in notes if not note.is_drum
-    ] + [codec.encode_note(note) for note in notes]
+    note_tuples = sorted(note_tuples)
+    times = [note[0] for note in note_tuples]
+    values = [codec.encode_note(NoteEventData(
+        note[4], note[3], note[2], note[1]), note[3] if note[3] == 0 else None) for note in note_tuples]
     return times, values
 
 
@@ -69,38 +70,65 @@ def preprocess(ns, resolution=100, segment_length=5.12, output_size=2048, codec=
     """
     segment_length = np.ceil(segment_length * resolution).astype(int)
     steps, values = tokenize(ns, resolution, codec)
-    stamps = np.unique(steps)
-    events = {}
-    state_events = {0: [codec.encode_event(Event(type="tie", value=0))]}
+    # the steps are in ascending order
+    cur_segment = 0
     ds = NoteEncodingState()
-    segments, shifts = np.divmod(stamps, segment_length)
-    num_segments = segments.max() + 1
-    change_points = np.zeros_like(segments)
-    change_points[:-1] = segments[1:] != segments[:-1]
-    for i, stamp in enumerate(stamps):
-        segment_num, shift_num = segments[i], shifts[i]
-        event_idx = np.nonzero(steps == stamp)[0]
-        event_values = [values[i] for i in event_idx]
-        event = events.get(segment_num, [])
-        event = event + ([shift_num] * (shift_num > 0)) + \
-            [v for e in event_values for v in e]
-        events[segment_num] = event
-        for value in event_values:
-            if len(value) == 3:
-                ds.active_pitches[(value[-1], value[0])] = value[1]
-        if change_points[i]:
-            state_event = note_encoding_state_to_events(ds, codec)
-            state_events[segment_num + 1] = state_event
+    events = [[codec.encode_event(Event(type="tie", value=0))]]
+    for step, value in zip(steps, values):
+        segment_idx, shift_num = divmod(step, segment_length)
+        assert segment_idx >= cur_segment, f'{segment_idx} < {cur_segment}'
+        while segment_idx > cur_segment:
+            cur_segment += 1
+            events.append(note_encoding_state_to_events(ds, codec))
+        if shift_num > 0:
+            events[-1].append(shift_num)
+        events[-1].extend(value)
+        if len(value) == 3:
+            ds.active_pitches[(value[2], value[0])] = value[1]
+    num_segments = cur_segment + 1
     tokens = torch.zeros(num_segments, output_size, dtype=torch.long)
-    for k, v in events.items():
-        all_events = torch.Tensor(state_events.get(k, []) + v)
-        tokens[k, :len(all_events)] = all_events
+    for i, v in enumerate(events):
+        filtered_events = _filter_tokens(v, codec)
+        all_events = torch.tensor(filtered_events)
+        tokens[i, :len(all_events)] = all_events
     segment_time = segment_length / resolution
     segment_times = [
         (i * segment_time, (i + 1) * segment_time) for i in range(num_segments - 1)
     ]
-    segment_times.append(((num_segments - 1) * segment_time, ns.total_time))
+    segment_times.append(((num_segments - 1) * segment_time,
+                         min(ns.total_time, num_segments * segment_time)))
     return tokens, torch.Tensor(segment_times)
+
+
+def _filter_tokens(tokens: Sequence[int], codec: Codec) -> Sequence[int]:
+    cur_t = 0
+    current_program = -1
+    is_on = None
+    filtered_tokens = []
+    for token in tokens:
+        event = codec.decode_event_index(token)
+        if event.type == 'shift' and event.value != cur_t:
+            filtered_tokens.append(token)
+            cur_t = event.value
+            current_program = -1
+            is_on = None
+        elif event.type == 'program' and event.value != current_program:
+            filtered_tokens.append(token)
+            current_program = event.value
+            is_on = None
+        elif event.type == 'velocity' and event.value == 0 and is_on is None:
+            filtered_tokens.append(token)
+            is_on = False
+        elif event.type == 'velocity' and event.value == 1 and not is_on:
+            filtered_tokens.append(token)
+            is_on = True
+        elif event.type in ['pitch', 'drum', 'tie']:
+            filtered_tokens.append(token)
+            if event.type == 'tie':
+                current_program = -1
+                is_on = None
+
+    return filtered_tokens
 
 
 ############################################################################
