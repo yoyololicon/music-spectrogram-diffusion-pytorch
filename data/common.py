@@ -26,7 +26,6 @@ class Base(Dataset):
         self.data_list = []
 
         total_num_tokens = 0
-        total_nonzero_tokens = 0
         print("Preprocessing data...")
         for filename, midi, sr, frames in tqdm(data_list):
             if sample_rate is None:
@@ -36,16 +35,13 @@ class Base(Dataset):
             num_chunks = int(frames / (segment_length_in_time * sr))
             tokens, _ = preprocess(
                 midi, segment_length=segment_length_in_time, codec=codec, **kwargs)
-            num_chunks = min(num_chunks, tokens.shape[0])
+            num_chunks = min(num_chunks, len(tokens))
             boundaries.append(boundaries[-1] + num_chunks)
             self.data_list.append(
                 (filename, tokens, sr, segment_length_in_time))
-            total_num_tokens += tokens.numel()
-            total_nonzero_tokens += tokens.count_nonzero()
+            total_num_tokens += len(tokens)
 
-        print(
-            f'Total number of tokens: {total_num_tokens}, portion of zero tokens in percentage: {100 - total_nonzero_tokens / total_num_tokens * 100}')
-
+        print(f'Total number of tokens: {total_num_tokens}')
         self.boundaries = np.array(boundaries)
         self.sr = sample_rate
         self.segment_length = segment_length
