@@ -155,12 +155,11 @@ class DiffusionLM(pl.LightningModule):
         z_t, t, noise = self.get_training_inputs(spec, uniform=True)
         noise_hat = self.model(midi, z_t, t, context)
         loss = F.l1_loss(noise_hat, noise)
-
-        values = {
-            'val_loss': loss,
-        }
-        self.log_dict(values, prog_bar=True, sync_dist=True)
         return loss
+
+    def validation_epoch_end(self, outputs) -> None:
+        avg_loss = sum(outputs) / len(outputs)
+        self.log('val_loss', avg_loss, prog_bar=True, sync_dist=True)
 
     def configure_optimizers(self):
         return optim.Adafactor(self.parameters(), lr=1e-3)
