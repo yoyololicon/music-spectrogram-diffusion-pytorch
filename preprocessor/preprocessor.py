@@ -86,11 +86,11 @@ def preprocess(ns, resolution=100, segment_length=5.12, output_size=2048, codec=
         if len(value) == 3:
             ds.active_pitches[(value[2], value[0])] = value[1]
     num_segments = cur_segment + 1
-    tokens = torch.zeros(num_segments, output_size, dtype=torch.long)
-    for i, v in enumerate(events):
+    tokens = []
+    for v in events:
         filtered_events = _filter_tokens(v, codec)
         all_events = torch.tensor(filtered_events)
-        tokens[i, :len(all_events)] = all_events
+        tokens.append(all_events)
     segment_time = segment_length / resolution
     segment_times = [
         (i * segment_time, (i + 1) * segment_time) for i in range(num_segments - 1)
