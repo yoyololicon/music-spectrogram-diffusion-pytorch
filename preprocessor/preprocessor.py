@@ -55,17 +55,16 @@ def tokenize(ns: note_seq.NoteSequence, frame_rate: int, codec: Codec):
     return times, values
 
 
-def preprocess(ns, resolution=100, segment_length=5.12, output_size=2048, codec=CODEC):
+def preprocess(ns, resolution=100, segment_length=5.12, codec=CODEC):
     """Preprocess MIDI tokens to pytorch Tensors of integers with output size 
     and segemented into chucks of segement length. 
     Args:
       ns: note sequence of MIDI notes
       resolution: number of frames/steps per second
       segment_length: number of seconds per segment
-      output_size: length of output tensor of each segment
       codec: vocabulary and encoding object of class Codec
     Returns:
-      (segmented tokens: number_of_segment x output_size,
+      (segmented tokens: list of torch tensors,
        segment times: number_of_segment x 2)
     """
     segment_length = np.ceil(segment_length * resolution).astype(int)
