@@ -48,7 +48,6 @@ class ConcatData(pl.LightningDataModule):
         factory_kwargs = {
             'codec': codec,
             'resolution': resolution,
-            'output_size': self.hparams.midi_output_size,
             'sample_rate': self.hparams.sample_rate,
             'segment_length': self.hparams.segment_length,
             'with_context': self.hparams.with_context,
