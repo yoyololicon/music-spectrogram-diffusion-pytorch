@@ -17,6 +17,7 @@ class AutoregressiveLM(pl.LightningModule):
                  max_input_length: int = 2048,
                  max_output_length: int = 512,
                  emb_dim: int = 512,
+                 dim_feedforward: int = 1024,
                  nhead: int = 6,
                  head_dim: int = 64,
                  num_layers: int = 8,
@@ -30,7 +31,7 @@ class AutoregressiveLM(pl.LightningModule):
             num_emb=num_emb, output_dim=output_dim, max_input_length=max_input_length,
             max_output_length=max_output_length, emb_dim=emb_dim, nhead=nhead,
             head_dim=head_dim, num_encoder_layers=num_layers, num_decoder_layers=num_layers, dropout=dropout,
-            layer_norm_eps=layer_norm_eps, norm_first=norm_first,
+            layer_norm_eps=layer_norm_eps, norm_first=norm_first, dim_feedforward=dim_feedforward
         )
 
         self.mel = nn.Sequential(
