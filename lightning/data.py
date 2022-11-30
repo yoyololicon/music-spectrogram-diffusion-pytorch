@@ -1,9 +1,27 @@
 import pytorch_lightning as pl
-from torch.utils.data import DataLoader, ConcatDataset
+import torch
+from torch.utils.data import DataLoader, ConcatDataset, default_collate
+from torch.nn.utils.rnn import pad_sequence
 from data.musicnet import MusicNet
 from data.maestro import Maestro
 from data.urmp import URMP
 from preprocessor.event_codec import Codec
+
+
+def get_padding_collate_fn(output_size: int):
+    def collate_fn(batch):
+        """Pad the batch to the longest sequence."""
+        seqs = [item[0] for item in batch]
+        rest = [item[1:] for item in batch]
+        rest = default_collate(rest)
+        if output_size is not None:
+            seqs = [torch.cat([seq, seq.new_zeros(output_size - len(seq))])
+                    for seq in seqs]
+            seqs = torch.stack(seqs, dim=0)
+        else:
+            seqs = pad_sequence(seqs, batch_first=True, padding_value=0)
+        return seqs, *rest
+    return collate_fn
 
 
 class ConcatData(pl.LightningDataModule):
@@ -32,7 +50,6 @@ class ConcatData(pl.LightningDataModule):
         factory_kwargs = {
             'codec': codec,
             'resolution': resolution,
-            'output_size': self.hparams.midi_output_size,
             'sample_rate': self.hparams.sample_rate,
             'segment_length': self.hparams.segment_length,
             'with_context': self.hparams.with_context,
@@ -79,10 +96,13 @@ class ConcatData(pl.LightningDataModule):
             self.test_dataset = ConcatDataset(test_datasets)
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.hparams.batch_size, shuffle=True, num_workers=4)
+        collate_fn = get_padding_collate_fn(self.hparams.midi_output_size)
+        return DataLoader(self.train_dataset, batch_size=self.hparams.batch_size, shuffle=True, num_workers=4, collate_fn=collate_fn)
 
     def val_dataloader(self):
-        return DataLoader(self.val_dataset, batch_size=self.hparams.batch_size, shuffle=False, num_workers=4)
+        collate_fn = get_padding_collate_fn(self.hparams.midi_output_size)
+        return DataLoader(self.val_dataset, batch_size=self.hparams.batch_size, shuffle=False, num_workers=4, collate_fn=collate_fn)
 
     def test_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=self.hparams.batch_size, shuffle=False, num_workers=4)
+        collate_fn = get_padding_collate_fn(self.hparams.midi_output_size)
+        return DataLoader(self.test_dataset, batch_size=self.hparams.batch_size, shuffle=False, num_workers=4, collate_fn=collate_fn)
