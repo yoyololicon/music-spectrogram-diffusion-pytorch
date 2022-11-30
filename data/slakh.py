@@ -113,7 +113,7 @@ class Slakh2100(Base):
 
             total_programs = list(program_stems_dict.keys())
             for _ in range(10):
-                num_included_programs = randint(4, len(total_programs))
+                num_included_programs = randint(4, len(total_programs) + 1)
                 included_programs = sample(
                     total_programs, num_included_programs)
 
