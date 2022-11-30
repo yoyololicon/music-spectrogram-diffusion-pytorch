@@ -3,6 +3,7 @@ from torch.utils.data import DataLoader, ConcatDataset
 from data.musicnet import MusicNet
 from data.maestro import Maestro
 from data.urmp import URMP
+from data.slakh import Slakh2100
 from preprocessor.event_codec import Codec
 
 
@@ -52,12 +53,18 @@ class ConcatData(pl.LightningDataModule):
                     Maestro(path=self.hparams.maestro_path, split='train', **factory_kwargs))
                 val_datasets.append(
                     Maestro(path=self.hparams.maestro_path, split='val', **factory_kwargs))
-        
+
             if self.hparams.urmp_wav_path is not None and self.hparams.urmp_midi_path is not None:
                 train_datasets.append(
                     URMP(wav_path=self.hparams.urmp_wav_path, midi_path=self.hparams.urmp_midi_path, split='train', **factory_kwargs))
                 val_datasets.append(
                     URMP(wav_path=self.hparams.urmp_wav_path, midi_path=self.hparams.urmp_midi_path, split='val', **factory_kwargs))
+
+            if self.hparams.slakh_path is not None:
+                train_datasets.append(
+                    Slakh2100(path=self.hparams.slakh_path, split='train', **factory_kwargs))
+                val_datasets.append(
+                    Slakh2100(path=self.hparams.slakh_path, split='val', **factory_kwargs))
 
             self.train_dataset = ConcatDataset(train_datasets)
             self.val_dataset = ConcatDataset(val_datasets)
@@ -75,6 +82,10 @@ class ConcatData(pl.LightningDataModule):
             if self.hparams.urmp_wav_path is not None and self.hparams.urmp_midi_path is not None:
                 test_datasets.append(
                     URMP(wav_path=self.hparams.urmp_wav_path, midi_path=self.hparams.urmp_midi_path, split='test', **factory_kwargs))
+
+            if self.hparams.slakh_path is not None:
+                test_datasets.append(
+                    Slakh2100(path=self.hparams.slakh_path, split='test', **factory_kwargs))
 
             self.test_dataset = ConcatDataset(test_datasets)
 
