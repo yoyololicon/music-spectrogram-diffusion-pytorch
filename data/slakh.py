@@ -94,7 +94,8 @@ class Slakh2100(Base):
             sr = info.samplerate
             frames = info.frames
 
-            valid_stems = [x.stem for x in (track_path / 'stems').iterdir() if x.stem != 'mix']
+            valid_stems = [x.stem for x in (
+                track_path / 'stems').iterdir() if x.stem != 'mix']
 
             with open(track_path / 'metadata.yaml') as f:
                 meta = yaml.safe_load(f)
@@ -113,7 +114,8 @@ class Slakh2100(Base):
             total_programs = list(program_stems_dict.keys())
             for _ in range(10):
                 num_included_programs = randint(4, len(total_programs))
-                included_programs = sample(total_programs, num_included_programs)
+                included_programs = sample(
+                    total_programs, num_included_programs)
 
                 included_stems = []
                 for program_num in included_programs:
@@ -153,7 +155,7 @@ class Slakh2100(Base):
             stems_ctx = []
             for stem in stems:
                 data, _ = sf.read(
-                    stem, start=ctx_offset, frames=frames, dtype='float32', always_2d=True)
+                    stem, start=ctx_offset, frames=frames * 2, dtype='float32', always_2d=True)
                 stems_ctx.append(data)
             ctx = sum(stems_ctx)
             data = ctx[frames:]
