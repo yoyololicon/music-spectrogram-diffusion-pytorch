@@ -39,7 +39,7 @@ class Base(Dataset):
             boundaries.append(boundaries[-1] + num_chunks)
             self.data_list.append(
                 (filename, tokens, sr, segment_length_in_time))
-            total_num_tokens += len(tokens)
+            total_num_tokens += sum([len(t) for t in tokens])
 
         print(f'Total number of tokens: {total_num_tokens}')
         self.boundaries = np.array(boundaries)
