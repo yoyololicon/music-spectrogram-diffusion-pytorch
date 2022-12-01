@@ -143,9 +143,12 @@ class Slakh2100(Base):
         if not self.with_context:
             stems_chunk = []
             for stem in stems:
-                data, _ = sf.read(
-                    stem, start=offset, frames=frames, dtype='float32', always_2d=True)
-                stems_chunk.append(data)
+                try:
+                    data, _ = sf.read(
+                        stem, start=offset, frames=frames, dtype='float32', always_2d=True)
+                    stems_chunk.append(data)
+                except RuntimeError as e:
+                    print(f'RuntimeError: {e}, {stem}')
             data = sum(stems_chunk)
             data = data.mean(axis=1)
             return data
@@ -154,18 +157,24 @@ class Slakh2100(Base):
         if ctx_offset >= 0:
             stems_ctx = []
             for stem in stems:
-                data, _ = sf.read(
-                    stem, start=ctx_offset, frames=frames * 2, dtype='float32', always_2d=True)
-                stems_ctx.append(data)
+                try:
+                    data, _ = sf.read(
+                        stem, start=ctx_offset, frames=frames * 2, dtype='float32', always_2d=True)
+                    stems_ctx.append(data)
+                except RuntimeError as e:
+                    print(f'RuntimeError: {e}, {stem}')
             ctx = sum(stems_ctx)
             data = ctx[frames:]
             ctx = ctx[:frames]
         else:
             stems_chunk = []
             for stem in stems:
-                data, _ = sf.read(
-                    stem, start=offset, frames=frames, dtype='float32', always_2d=True)
-                stems_chunk.append(data)
+                try:
+                    data, _ = sf.read(
+                        stem, start=offset, frames=frames, dtype='float32', always_2d=True)
+                    stems_chunk.append(data)
+                except RuntimeError as e:
+                    print(f'RuntimeError: {e}, {stem}')
             data = sum(stems_chunk)
             ctx = np.zeros_like(data)
         data = data.mean(axis=1)
