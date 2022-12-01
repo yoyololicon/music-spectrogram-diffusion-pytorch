@@ -18,6 +18,7 @@ import dataclasses
 from typing import Tuple, Optional, MutableMapping, MutableSet
 import note_seq
 
+
 @dataclasses.dataclass
 class EventRange:
     type: str
@@ -52,24 +53,24 @@ class NoteEncodingState:
 
 @dataclasses.dataclass
 class NoteDecodingState:
-  """Decoding state for note transcription."""
-  current_time: float = 0.0
-  # velocity to apply to subsequent pitch events (zero for note-off)
-  current_velocity: int = 100 
-  # program to apply to subsequent pitch events
-  current_program: int = 0
-  # onset time and velocity for active pitches and programs
-  active_pitches: MutableMapping[Tuple[int, int],
-                                 Tuple[float, int]] = dataclasses.field(
-                                     default_factory=dict)
-  # pitches (with programs) to continue from previous segment
-  tied_pitches: MutableSet[Tuple[int, int]] = dataclasses.field(
-      default_factory=set)
-  # whether or not we are in the tie section at the beginning of a segment
-  is_tie_section: bool = False
-  # partially-decoded NoteSequence
-  note_sequence: note_seq.NoteSequence = dataclasses.field(
-      default_factory=lambda: note_seq.NoteSequence(ticks_per_quarter=220))
+    """Decoding state for note transcription."""
+    current_time: float = 0.0
+    # velocity to apply to subsequent pitch events (zero for note-off)
+    current_velocity: int = 100
+    # program to apply to subsequent pitch events
+    current_program: int = 0
+    # onset time and velocity for active pitches and programs
+    active_pitches: MutableMapping[Tuple[int, int],
+                                   Tuple[float, int]] = dataclasses.field(
+                                       default_factory=dict)
+    # pitches (with programs) to continue from previous segment
+    tied_pitches: MutableSet[Tuple[int, int]] = dataclasses.field(
+        default_factory=set)
+    # whether or not we are in the tie section at the beginning of a segment
+    is_tie_section: bool = False
+    # partially-decoded NoteSequence
+    note_sequence: note_seq.NoteSequence = dataclasses.field(
+        default_factory=lambda: note_seq.NoteSequence(ticks_per_quarter=220))
 
 
 class Codec:
@@ -95,31 +96,38 @@ class Codec:
         shift_tokens = {t: t for t in range(steps_per_segment + 1)}
         offset += steps_per_segment + 1
         mapping["shift"] = shift_tokens
-        pitch_tokens = {p: p - note_seq.MIN_MIDI_PITCH + offset for p in range(note_seq.MIN_MIDI_PITCH, note_seq.MAX_MIDI_PITCH + 1)}
+        pitch_tokens = {p: p - note_seq.MIN_MIDI_PITCH + offset for p in range(
+            note_seq.MIN_MIDI_PITCH, note_seq.MAX_MIDI_PITCH + 1)}
         offset += note_seq.MAX_MIDI_PITCH - note_seq.MIN_MIDI_PITCH + 1
         mapping["pitch"] = pitch_tokens
         mapping["velocity"] = {0: offset, 1: offset + 1}
         mapping["tie"] = {0: offset + 2}
         offset += 3
-        program_tokens = {p: p - note_seq.MIN_MIDI_PROGRAM + offset for p in range(note_seq.MIN_MIDI_PROGRAM, note_seq.MAX_MIDI_PROGRAM + 1)}
+        program_tokens = {p: p - note_seq.MIN_MIDI_PROGRAM + offset for p in range(
+            note_seq.MIN_MIDI_PROGRAM, note_seq.MAX_MIDI_PROGRAM + 1)}
         offset += note_seq.MAX_MIDI_PROGRAM - note_seq.MIN_MIDI_PROGRAM + 1
         mapping["program"] = program_tokens
-        drum_tokens = {p: p - note_seq.MIN_MIDI_PITCH + offset for p in range(note_seq.MIN_MIDI_PITCH, note_seq.MAX_MIDI_PITCH + 1)}
-        mapping["drum"] = drum_tokens 
+        drum_tokens = {p: p - note_seq.MIN_MIDI_PITCH +
+                       offset for p in range(note_seq.MIN_MIDI_PITCH, note_seq.MAX_MIDI_PITCH + 1)}
+        mapping["drum"] = drum_tokens
+
+        print("Size of vocabulary: {}".format(
+            offset + note_seq.MAX_MIDI_PITCH - note_seq.MIN_MIDI_PITCH + 1))
 
         self.encoding_mapping = mapping
-        self.decode_mapping = {v: (k, t) for t, m in self.encoding_mapping.items() for k, v in m.items()}
-        
-    def is_shift_event_index(self, index: int) -> bool:
-        return self.decode_mapping[index][1] == 'shift' 
+        self.decode_mapping = {
+            v: (k, t) for t, m in self.encoding_mapping.items() for k, v in m.items()}
 
-    def encode_note(self, note: NoteEventData, velocity: int=None) -> int:
+    def is_shift_event_index(self, index: int) -> bool:
+        return self.decode_mapping[index][1] == 'shift'
+
+    def encode_note(self, note: NoteEventData, velocity: int = None) -> int:
         """Encode an event to an index."""
-        velocity = int(note.velocity > 0) if velocity is None else velocity 
+        velocity = int(note.velocity > 0) if velocity is None else velocity
         if note.is_drum:
             return [
-                    self.encoding_mapping["velocity"][velocity], 
-                    self.encoding_mapping["drum"][note.pitch]
+                self.encoding_mapping["velocity"][velocity],
+                self.encoding_mapping["drum"][note.pitch]
             ]
         else:
             return [
