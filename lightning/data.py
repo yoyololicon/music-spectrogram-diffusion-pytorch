@@ -16,8 +16,8 @@ def get_padding_collate_fn(output_size: int):
         rest = [item[1:] for item in batch]
         rest = default_collate(rest)
         if output_size is not None:
-            seqs = [torch.cat([seq, seq.new_zeros(output_size - len(seq))]
-                              if len(seq) < output_size else seq[:output_size]) for seq in seqs]
+            seqs = [torch.cat([seq, seq.new_zeros(output_size - len(seq))])
+                    if len(seq) < output_size else seq[:output_size] for seq in seqs]
             seqs = torch.stack(seqs, dim=0)
         else:
             seqs = pad_sequence(seqs, batch_first=True, padding_value=0)
