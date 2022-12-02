@@ -56,10 +56,10 @@ ckpt_path: null
 model:
   class_path: lightning.AutoregressiveLM
   init_args:
-    num_emb: 900
+    num_emb: 901
     output_dim: 128
-    max_input_length: 2048
-    max_output_length: 512
+    max_input_length: 3000
+    max_output_length: 257
     emb_dim: 512
     dim_feedforward: 1024
     nhead: 6
@@ -94,7 +94,7 @@ data:
     segment_length: 81920
     musicnet_path: /import/c4dm-datasets/musicnet/
     maestro_path: /import/c4dm-datasets/maestro-v3.0.0/
-    slakh_path: null
+    slakh_path: /import/c4dm-datasets/Slakh/slakh2100_flac_redux/
     cerberus_path: null
     guitarset_path: null
     urmp_wav_path: /import/c4dm-datasets/URMP/Dataset/
