@@ -94,6 +94,10 @@ class Slakh2100(Base):
             sr = info.samplerate
             frames = info.frames
 
+            if split == 'test':
+                data_list.append((mix_flac_file, ns, sr, frames))
+                continue
+
             valid_stems = [x.stem for x in (
                 track_path / 'stems').iterdir() if x.stem != 'mix']
 
@@ -133,8 +137,12 @@ class Slakh2100(Base):
         super().__init__(data_list, **kwargs)
 
         self.stems_list = stems_list
+        self.split = split
 
     def _get_waveforms(self, index: int, chunk_index: int) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+        if self.split == 'test':
+            return super()._get_waveforms(index, chunk_index)
+        
         *_, sr, length_in_time = self.data_list[index]
         offset = int(chunk_index * length_in_time * sr)
         frames = int(length_in_time * sr)
