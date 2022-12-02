@@ -15,12 +15,10 @@ def cli_main():
             'log_every_n_steps': 1,
             'callbacks': [
                 ModelCheckpoint(
-                    monitor='val_loss',
-                    mode='min',
                     save_top_k=1,
                     save_last=True,
-                    every_n_epochs=1,
-                    filename='{epoch}-{step}-{val_loss:.2f}',
+                    every_n_train_steps=10000,
+                    filename='{epoch}-{step}',
                 ),
                 ModelSummary(max_depth=4)
             ]
