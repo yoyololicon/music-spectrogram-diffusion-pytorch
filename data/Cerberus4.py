@@ -21,7 +21,7 @@ from .common import Base
 from preprocessor.event_codec import Codec
 
 
-class MyDataset(Base):  # padding等加在getterm #pad放在init #np_to_torch放在
+class MAPS(Base):  # padding等加在getterm #pad放在init #np_to_torch放在
     def __init__(self,
                  path: str = "/import/c4dm-datasets/MAPS_working/MAPS",
                  **kwargs):
@@ -42,7 +42,7 @@ class MyDataset(Base):  # padding等加在getterm #pad放在init #np_to_torch放
 
 
 if __name__ == "__main__":
-    data_set = MyDataset()
+    data_set = MAPS()
 
     # data_loader = torch.utils.data.DataLoader(data_set, batch_size=1)
     # for data in data_loader:
