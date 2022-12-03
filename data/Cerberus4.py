@@ -12,65 +12,42 @@ The true dataset is at here
 https://c4dm.eecs.qmul.ac.uk/ycart/a-maps.html
 """ 
 import torch
-import torchaudio
-import jams
 import os
 import tqdm
-import pickle
-import glob
+import soundfile as sf
+from pathlib import Path
+import note_seq
+import tqdm
 
-SR = 44100
+from .common import Base
+from preprocessor.event_codec import Codec
 
 
-class MyDataset(torch.utils.data.Dataset): #padding等加在getterm #pad放在init #np_to_torch放在
-    def __init__(self, path="/import/c4dm-datasets/MAPS_working/MAPS"):
-        self.path = path
-        self.data = []
-        try:
-            file_ = open('./MAPS_data.pk', 'wb')
-            self.data = pickle.load(file_)
-            file_.close()
-        except:
-            file_ = open('./MAPS_data.pk', 'wb')
-            file_dirs = os.walk(path)
-            for file_dir, _, __ in tqdm.tqdm(file_dirs):
-                # if len(self.data) > 10:
-                #     break
-                file_names = glob.glob(file_dir+'/*.wav') 
-                for file in file_names:
-                    tmp, sr = torchaudio.load(file)
-                    title = file[:-4]
-                    duration = tmp.shape[1]
-                    num_seq = int(duration * 100 + 511) // 512
-                    self.data.extend([(title, i) for i in range(num_seq)])
-                
-            pickle.dump(self.data, file_)
-            file_.close()
-        
-    def __len__(self): # 返回df的长度
-        return len(self.data)
-    
-    def __getitem__(self, idx): # 获取第idx+1列的数据
-        title, time = self.data[idx]
-        audio, sr = torchaudio.load(f"{title}.wav", frame_offset=int(SR*5.12*time), num_frames=int(SR*5.12))
-        if time==0:
-            context = torch.zeros((1, int(5.12*sr)))
-        else:
-            context, sr = torchaudio.load(f"{self.path}/audio_mono-pickup_mix/{title}_mix.wav", frame_offset=int(SR*5.12*(time-1)), num_frames=int(SR*5.12))
-        transform = torchaudio.transforms.Resample(orig_freq=sr, new_freq=16000)
-        audio = transform(audio)
-        context = transform(context)
-        audio = audio.mean(0)
-        if audio.shape[0] < 5.12 * 16000:
-            audio = torch.nn.functional.pad(audio, (0, int(5.12 * 16000 - audio.shape[1])))
-        midi_path = f"{title}.mid"
-        return midi_path, context, audio
+
+class MyDataset(Base): #padding等加在getterm #pad放在init #np_to_torch放在
+    def __init__(self, 
+                path: str = "/import/c4dm-datasets/MAPS_working/MAPS",
+                **kwargs):
+        data_list = []
+        print("Loading MAPS...")
+        resolution = 100
+        segment_length_in_time = 5.12
+        codec = Codec(int(segment_length_in_time * resolution + 1))
+        for wav_file in tqdm.tqdm(list(Path(path).rglob('*.wav'))):
+            info = sf.info(wav_file)
+            sr = info.samplerate
+            frames = info.frames
+            midi_file = str(wav_file)[:-3] + "mid"
+            ns = note_seq.midi_file_to_note_sequence(midi_file)
+            ns = note_seq.apply_sustain_control_changes(ns)
+            data_list.append((wav_file, ns, sr, frames))
+        super().__init__(data_list, codec=codec, **kwargs)
 
 
 if __name__ == "__main__":
     data_set = MyDataset()
         
-    data_loader = torch.utils.data.DataLoader(data_set, batch_size=1)
-    for data in data_loader:
-        print(data[0], data[1].shape, data[2].shape)
-        breaks
+    # data_loader = torch.utils.data.DataLoader(data_set, batch_size=1)
+    # for data in data_loader:
+    #     print(data[0], data[1].shape, data[2].shape)
+    #     break
