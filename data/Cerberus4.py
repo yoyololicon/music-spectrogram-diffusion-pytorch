@@ -10,9 +10,7 @@ https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=9054340
 
 The true dataset is at here
 https://c4dm.eecs.qmul.ac.uk/ycart/a-maps.html
-""" 
-import torch
-import os
+"""
 import tqdm
 import soundfile as sf
 from pathlib import Path
@@ -23,11 +21,10 @@ from .common import Base
 from preprocessor.event_codec import Codec
 
 
-
-class MyDataset(Base): #padding等加在getterm #pad放在init #np_to_torch放在
-    def __init__(self, 
-                path: str = "/import/c4dm-datasets/MAPS_working/MAPS",
-                **kwargs):
+class MyDataset(Base):  # padding等加在getterm #pad放在init #np_to_torch放在
+    def __init__(self,
+                 path: str = "/import/c4dm-datasets/MAPS_working/MAPS",
+                 **kwargs):
         data_list = []
         print("Loading MAPS...")
         resolution = 100
@@ -46,7 +43,7 @@ class MyDataset(Base): #padding等加在getterm #pad放在init #np_to_torch放�
 
 if __name__ == "__main__":
     data_set = MyDataset()
-        
+
     # data_loader = torch.utils.data.DataLoader(data_set, batch_size=1)
     # for data in data_loader:
     #     print(data[0], data[1].shape, data[2].shape)
