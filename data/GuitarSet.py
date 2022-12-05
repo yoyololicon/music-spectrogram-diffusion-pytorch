@@ -43,7 +43,7 @@ class GuitarSet(Base):  # padding等加在getterm #pad放在init #np_to_torch放
         elif split == "val" or split =="valid":
             file_names = [file for file in file_names if file.split("-")[0][-1]=="3"] 
         else:
-            raise("GuitarSet has no test data in Google Splitation.")           
+            raise ValueError(f'Invalid split: {split}')         
         for file in tqdm.tqdm(file_names):
             tmp = jams.load(f"{path}/annotation/{file}")
             title = tmp["file_metadata"]["title"]
