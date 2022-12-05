@@ -2,7 +2,7 @@ import torch
 import torchaudio
 import jams
 import os
-import tqdm
+from tqdm import tqdm
 import note_seq
 from note_seq.midi_io import midi_to_note_sequence
 import pretty_midi
@@ -11,10 +11,9 @@ import soundfile as sf
 from .common import Base
 
 
-def get_noteseq(title, path="/import/c4dm-datasets/GuitarSet"):
-    tmp = jams.load(f"{path}/annotation/{title}.jams")
+def get_noteseq(x: jams.JAMS):
     tmp = [i["data"]
-           for i in tmp["annotations"] if i["namespace"] == "note_midi"]
+           for i in x["annotations"] if i["namespace"] == "note_midi"]
 
     midi_data = pretty_midi.PrettyMIDI(initial_tempo=120)
     for note_list in tmp:
@@ -23,7 +22,7 @@ def get_noteseq(title, path="/import/c4dm-datasets/GuitarSet"):
         midi_data.instruments.append(inst)
         for note in note_list:
             inst.notes.append(pretty_midi.Note(
-                120, int(note[2]), note[0], note[0] + note[1]))
+                120, round(note[2]), note[0], note[0] + note[1]))
     noteseq = midi_to_note_sequence(midi_data)
     return noteseq
 
@@ -43,16 +42,16 @@ class GuitarSet(Base):
                 file for file in file_names if file.split("-")[0][-1] == "3"]
         else:
             raise ValueError(f'Invalid split: {split}')
-        for file in tqdm.tqdm(file_names):
+        
+        for file in tqdm(file_names):
             tmp = jams.load(f"{path}/annotation/{file}")
             title = tmp["file_metadata"]["title"]
-            duration = tmp["file_metadata"]["duration"]
 
             wav_file = f"{path}/audio_mono-pickup_mix/{title}_mix.wav"
             info = sf.info(wav_file)
             sr = info.samplerate
             frames = info.frames
-            ns = get_noteseq(title, path)
+            ns = get_noteseq(tmp)
             ns = note_seq.apply_sustain_control_changes(ns)
             data_list.append((wav_file, ns, sr, frames))
 
