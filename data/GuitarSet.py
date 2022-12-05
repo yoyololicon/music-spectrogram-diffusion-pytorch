@@ -8,7 +8,6 @@ from note_seq.midi_io import midi_to_note_sequence
 import pretty_midi
 
 from .common import Base
-from preprocessor.event_codec import Codec
 
 
 SR = 44100
@@ -35,9 +34,16 @@ def get_noteseq(title):
 class GuitarSet(Base):  # padding等加在getterm #pad放在init #np_to_torch放在
     def __init__(self,
                  path: str = "/import/c4dm-datasets/GuitarSet",
+                 split: str = "train",
                  **kwargs):
         data_list = []
         file_names = os.listdir(f"{path}/annotation")
+        if split == "train":
+            file_names = [file for file in file_names if file.split("-")[0][-1]!="3"]
+        elif split == "val" or split =="valid":
+            file_names = [file for file in file_names if file.split("-")[0][-1]=="3"] 
+        else:
+            raise("GuitarSet has no test data in Google Splitation.")           
         for file in tqdm.tqdm(file_names):
             tmp = jams.load(f"{path}/annotation/{file}")
             title = tmp["file_metadata"]["title"]
@@ -51,11 +57,8 @@ class GuitarSet(Base):  # padding等加在getterm #pad放在init #np_to_torch放
             ns = note_seq.apply_sustain_control_changes(ns)
             data_list.append((wav_file, ns, SR, frames))
 
-        resolution = 100
-        segment_length_in_time = 5.12
-        codec = Codec(int(segment_length_in_time * resolution + 1))
-
-        super().__init__(data_list, codec=codec, **kwargs)
+        
+        super().__init__(data_list, **kwargs)
 
 
 if __name__ == "__main__":
