@@ -8,7 +8,6 @@ from note_seq.midi_io import midi_to_note_sequence
 import pretty_midi
 
 from .common import Base
-from preprocessor.event_codec import Codec
 
 
 SR = 44100
@@ -51,18 +50,7 @@ class GuitarSet(Base):  # padding等加在getterm #pad放在init #np_to_torch放
             ns = note_seq.apply_sustain_control_changes(ns)
             data_list.append((wav_file, ns, SR, frames))
 
-        resolution = 100
-        segment_length_in_time = 5.12
-        codec = Codec(int(segment_length_in_time * resolution + 1))
 
-        super().__init__(data_list, codec=codec, **kwargs)
+        super().__init__(data_list, **kwargs)
 
 
-if __name__ == "__main__":
-    data_set = GuitarSet()
-
-    # data_loader = torch.utils.data.DataLoader(data_set, batch_size=1)
-    # for data in data_loader:
-    #     continue
-    # a = jams.load(
-    #     "/import/c4dm-datasets/GuitarSet/annotation/00_BN1-129-Eb_comp.jams")

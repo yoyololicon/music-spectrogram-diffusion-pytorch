@@ -27,9 +27,6 @@ class MAPS(Base):  # padding等加在getterm #pad放在init #np_to_torch放在
                  **kwargs):
         data_list = []
         print("Loading MAPS...")
-        resolution = 100
-        segment_length_in_time = 5.12
-        codec = Codec(int(segment_length_in_time * resolution + 1))
         for wav_file in tqdm.tqdm(list(Path(path).rglob('*.wav'))):
             info = sf.info(wav_file)
             sr = info.samplerate
@@ -38,13 +35,6 @@ class MAPS(Base):  # padding等加在getterm #pad放在init #np_to_torch放在
             ns = note_seq.midi_file_to_note_sequence(midi_file)
             ns = note_seq.apply_sustain_control_changes(ns)
             data_list.append((wav_file, ns, sr, frames))
-        super().__init__(data_list, codec=codec, **kwargs)
+        super().__init__(data_list, **kwargs)
 
 
-if __name__ == "__main__":
-    data_set = MAPS()
-
-    # data_loader = torch.utils.data.DataLoader(data_set, batch_size=1)
-    # for data in data_loader:
-    #     print(data[0], data[1].shape, data[2].shape)
-    #     break
