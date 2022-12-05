@@ -3,3 +3,4 @@ torchaudio
 pytorch-lightning[extra]
 torch_optimizer
 note-seq
+jams
