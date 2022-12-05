@@ -56,16 +56,8 @@ class GuitarSet(Base):  # padding等加在getterm #pad放在init #np_to_torch放
             ns = get_noteseq(title)
             ns = note_seq.apply_sustain_control_changes(ns)
             data_list.append((wav_file, ns, SR, frames))
-
+        
         
         super().__init__(data_list, **kwargs)
 
 
-if __name__ == "__main__":
-    data_set = GuitarSet()
-
-    # data_loader = torch.utils.data.DataLoader(data_set, batch_size=1)
-    # for data in data_loader:
-    #     continue
-    # a = jams.load(
-    #     "/import/c4dm-datasets/GuitarSet/annotation/00_BN1-129-Eb_comp.jams")
