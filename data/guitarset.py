@@ -11,9 +11,7 @@ import soundfile as sf
 from .common import Base
 
 
-
-
-def get_noteseq(title, path = "/import/c4dm-datasets/GuitarSet"):
+def get_noteseq(title, path="/import/c4dm-datasets/GuitarSet"):
     tmp = jams.load(f"{path}/annotation/{title}.jams")
     tmp = [i["data"]
            for i in tmp["annotations"] if i["namespace"] == "note_midi"]
@@ -30,7 +28,7 @@ def get_noteseq(title, path = "/import/c4dm-datasets/GuitarSet"):
     return noteseq
 
 
-class GuitarSet(Base):  # padding等加在getterm #pad放在init #np_to_torch放在
+class GuitarSet(Base):
     def __init__(self,
                  path: str = "/import/c4dm-datasets/GuitarSet",
                  split: str = "train",
@@ -38,11 +36,13 @@ class GuitarSet(Base):  # padding等加在getterm #pad放在init #np_to_torch放
         data_list = []
         file_names = os.listdir(f"{path}/annotation")
         if split == "train":
-            file_names = [file for file in file_names if file.split("-")[0][-1]!="3"]
-        elif split == "val" or split =="test":
-            file_names = [file for file in file_names if file.split("-")[0][-1]=="3"] 
+            file_names = [
+                file for file in file_names if file.split("-")[0][-1] != "3"]
+        elif split == "val" or split == "test":
+            file_names = [
+                file for file in file_names if file.split("-")[0][-1] == "3"]
         else:
-            raise ValueError(f'Invalid split: {split}')         
+            raise ValueError(f'Invalid split: {split}')
         for file in tqdm.tqdm(file_names):
             tmp = jams.load(f"{path}/annotation/{file}")
             title = tmp["file_metadata"]["title"]
@@ -52,12 +52,8 @@ class GuitarSet(Base):  # padding等加在getterm #pad放在init #np_to_torch放
             info = sf.info(wav_file)
             sr = info.samplerate
             frames = info.frames
-            # ns = note_seq.midi_file_to_note_sequence(midi_file)
             ns = get_noteseq(title, path)
             ns = note_seq.apply_sustain_control_changes(ns)
             data_list.append((wav_file, ns, sr, frames))
-        
-        
+
         super().__init__(data_list, **kwargs)
-
-
