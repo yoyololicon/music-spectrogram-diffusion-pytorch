@@ -1,5 +1,3 @@
-import torch
-import torchaudio
 import jams
 import os
 from tqdm import tqdm
@@ -47,7 +45,7 @@ class GuitarSet(Base):
             tmp = jams.load(f"{path}/annotation/{file}")
             title = tmp["file_metadata"]["title"]
 
-            wav_file = f"{path}/audio_mono-pickup_mix/{title}_mix.wav"
+            wav_file = f"{path}/audio_mono-mic/{title}_mic.wav"
             info = sf.info(wav_file)
             sr = info.samplerate
             frames = info.frames
