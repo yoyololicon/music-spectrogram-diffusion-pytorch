@@ -26,6 +26,7 @@ class Base(Dataset):
         self.data_list = []
 
         total_num_tokens = 0
+        empty_chunks = 0
         print("Preprocessing data...")
         for filename, midi, sr, frames in tqdm(data_list):
             if sample_rate is None:
@@ -36,12 +37,14 @@ class Base(Dataset):
             tokens, _ = preprocess(
                 midi, segment_length=segment_length_in_time, codec=codec, **kwargs)
             num_chunks = min(num_chunks, len(tokens))
+            empty_chunks += sum([1 for t in tokens if len(t) <= 1])
             boundaries.append(boundaries[-1] + num_chunks)
             self.data_list.append(
                 (filename, tokens, sr, segment_length_in_time))
             total_num_tokens += sum([len(t) for t in tokens])
 
-        print(f'Total number of tokens: {total_num_tokens}')
+        print(
+            f'Total number of tokens: {total_num_tokens}, total number of chunks: {boundaries[-1]}, empty chunks: {empty_chunks}')
         self.boundaries = np.array(boundaries)
         self.sr = sample_rate
         self.segment_length = segment_length
