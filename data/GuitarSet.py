@@ -13,8 +13,7 @@ from .common import Base
 SR = 44100
 
 
-def get_noteseq(title):
-    path = "/import/c4dm-datasets/GuitarSet"
+def get_noteseq(title, path = "/import/c4dm-datasets/GuitarSet"):
     tmp = jams.load(f"{path}/annotation/{title}.jams")
     tmp = [i["data"]
            for i in tmp["annotations"] if i["namespace"] == "note_midi"]
@@ -53,7 +52,7 @@ class GuitarSet(Base):  # padding等加在getterm #pad放在init #np_to_torch放
             wav_file = f"{path}/audio_mono-pickup_mix/{title}_mix.wav"
             y, _ = torchaudio.load(wav_file)
             # ns = note_seq.midi_file_to_note_sequence(midi_file)
-            ns = get_noteseq(title)
+            ns = get_noteseq(title, path)
             ns = note_seq.apply_sustain_control_changes(ns)
             data_list.append((wav_file, ns, SR, frames))
         
