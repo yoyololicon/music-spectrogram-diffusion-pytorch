@@ -10,7 +10,6 @@ import pretty_midi
 from .common import Base
 
 
-SR = 44100
 
 
 def get_noteseq(title, path = "/import/c4dm-datasets/GuitarSet"):
@@ -39,7 +38,7 @@ class GuitarSet(Base):  # padding等加在getterm #pad放在init #np_to_torch放
         file_names = os.listdir(f"{path}/annotation")
         if split == "train":
             file_names = [file for file in file_names if file.split("-")[0][-1]!="3"]
-        elif split == "val" or split =="valid":
+        elif split == "val" or split =="test":
             file_names = [file for file in file_names if file.split("-")[0][-1]=="3"] 
         else:
             raise ValueError(f'Invalid split: {split}')         
@@ -48,13 +47,14 @@ class GuitarSet(Base):  # padding等加在getterm #pad放在init #np_to_torch放
             title = tmp["file_metadata"]["title"]
             duration = tmp["file_metadata"]["duration"]
 
-            frames = duration * SR
             wav_file = f"{path}/audio_mono-pickup_mix/{title}_mix.wav"
-            y, _ = torchaudio.load(wav_file)
+            info = sf.info(wav_file)
+            sr = info.samplerate
+            frames = info.frames
             # ns = note_seq.midi_file_to_note_sequence(midi_file)
             ns = get_noteseq(title, path)
             ns = note_seq.apply_sustain_control_changes(ns)
-            data_list.append((wav_file, ns, SR, frames))
+            data_list.append((wav_file, ns, sr, frames))
         
         
         super().__init__(data_list, **kwargs)
