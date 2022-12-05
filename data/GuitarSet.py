@@ -6,6 +6,7 @@ import tqdm
 import note_seq
 from note_seq.midi_io import midi_to_note_sequence
 import pretty_midi
+import soundfile as sf
 
 from .common import Base
 
