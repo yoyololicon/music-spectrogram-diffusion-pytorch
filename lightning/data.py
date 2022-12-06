@@ -6,6 +6,7 @@ from data.musicnet import MusicNet
 from data.maestro import Maestro
 from data.urmp import URMP
 from data.slakh import Slakh2100
+from data.guitarset import GuitarSet
 from preprocessor.event_codec import Codec
 
 
@@ -35,7 +36,6 @@ class ConcatData(pl.LightningDataModule):
                  musicnet_path: str = None,
                  maestro_path: str = None,
                  slakh_path: str = None,
-                 cerberus_path: str = None,
                  guitarset_path: str = None,
                  urmp_wav_path: str = None,
                  urmp_midi_path: str = None
@@ -83,6 +83,12 @@ class ConcatData(pl.LightningDataModule):
                 val_datasets.append(
                     Slakh2100(path=self.hparams.slakh_path, split='val', **factory_kwargs))
 
+            if self.hparams.guitarset_path is not None:
+                train_datasets.append(
+                    GuitarSet(path=self.hparams.guitarset_path, split='train', **factory_kwargs))
+                val_datasets.append(
+                    GuitarSet(path=self.hparams.guitarset_path, split='val', **factory_kwargs))
+
             self.train_dataset = ConcatDataset(train_datasets)
             self.val_dataset = ConcatDataset(val_datasets)
 
@@ -103,6 +109,10 @@ class ConcatData(pl.LightningDataModule):
             if self.hparams.slakh_path is not None:
                 test_datasets.append(
                     Slakh2100(path=self.hparams.slakh_path, split='test', **factory_kwargs))
+
+            if self.hparams.guitarset_path is not None:
+                test_datasets.append(
+                    GuitarSet(path=self.hparams.guitarset_path, split='test', **factory_kwargs))
 
             self.test_dataset = ConcatDataset(test_datasets)
 
