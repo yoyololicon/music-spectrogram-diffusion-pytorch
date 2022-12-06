@@ -144,6 +144,9 @@ class Slakh2100(Base):
                 (k, v) for k, v in program_stems_dict.items() if k in BASS_PROGRAMS)
             drums_stems = program_stems_dict.get(128, [])
 
+            in_cerberus = len(pianos_items) != 0 and len(guitars_items) != 0 and len(
+                bass_items) != 0 and len(drums_stems) != 0
+
             cerberus_dict = {
                 'piano': ([x[0] for x in pianos_items], list(y for x in pianos_items for y in x[1])),
                 'guitar': ([x[0] for x in guitars_items], list(y for x in guitars_items for y in x[1])),
@@ -160,8 +163,10 @@ class Slakh2100(Base):
                     cerberus_dict['guitar'][1] + \
                     cerberus_dict['bass'][1] + drums_stems
 
-                copyied_ns = _copy_notesequence(ns, included_programs, True)
-                data_list.append((included_stems, copyied_ns, sr, frames))
+                if in_cerberus:
+                    copyied_ns = _copy_notesequence(
+                        ns, included_programs, True)
+                    data_list.append((included_stems, copyied_ns, sr, frames))
                 continue
 
             total_programs = list(program_stems_dict.keys())
@@ -182,6 +187,8 @@ class Slakh2100(Base):
 
                 data_list.append((included_stems, filtered_ns, sr, frames))
 
+            if not in_cerberus:
+                continue
             # Cerberus train/val set
             for instruments in CERBERUS_COMBINATIONS:
                 included_programs = []
