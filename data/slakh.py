@@ -6,7 +6,9 @@ from tqdm import tqdm
 import yaml
 from random import sample, shuffle, random, randint
 from typing import Tuple, Union, Optional, List, Dict, Any
-from itertools import chain
+from itertools import chain, combinations
+from collections import Counter
+from math import comb
 
 from .common import Base
 
@@ -106,7 +108,7 @@ class Slakh2100(Base):
             raise ValueError(f'Invalid split: {split}')
 
         data_list = []
-        # stems_list = []
+
         print("Loading Slakh2100 and Cerberus4 datasets...")
         for track_path in tqdm(list(path.iterdir())):
             if not track_path.is_dir():
@@ -170,11 +172,24 @@ class Slakh2100(Base):
                 continue
 
             total_programs = list(program_stems_dict.keys())
-            for _ in range(10):
-                num_included_programs = randint(4, len(total_programs))
-                included_programs = sample(
-                    total_programs, num_included_programs)
+            candidate_numbers = list(range(4, len(total_programs) + 1))
+            counts = list(comb(len(total_programs), x)
+                          for x in candidate_numbers)
+            sampled_combinations = []
+            if sum(counts) <= 10:
+                for num in candidate_numbers:
+                    sampled_combinations += list(
+                        combinations(total_programs, num))
+            else:
+                sampled_numbers = sample(
+                    candidate_numbers, counts=counts, k=10)
+                counter = Counter(sampled_numbers)
+                for num, cnt in counter.items():
+                    sampled_combinations += sample(
+                        list(combinations(total_programs, num)), k=cnt)
 
+            for included_programs in sampled_combinations:
+                included_programs = list(included_programs)
                 included_stems = []
                 for program_num in included_programs:
                     included_stems += program_stems_dict[program_num]
