@@ -95,7 +95,6 @@ data:
     musicnet_path: /import/c4dm-datasets/musicnet/
     maestro_path: /import/c4dm-datasets/maestro-v3.0.0/
     slakh_path: /import/c4dm-datasets/Slakh/slakh2100_flac_redux/
-    cerberus_path: null
-    guitarset_path: null
+    guitarset_path: /import/c4dm-datasets/GuitarSet/
     urmp_wav_path: /import/c4dm-datasets/URMP/Dataset/
     urmp_midi_path: /import/c4dm-datasets/URMP-clean-midi/
