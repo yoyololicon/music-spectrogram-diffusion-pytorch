@@ -54,7 +54,7 @@ trainer:
   inference_mode: true
 ckpt_path: null
 model:
-  class_path: lightning.AutoregressiveLM
+  class_path: lightning.DiffusionLM
   init_args:
     num_emb: 901
     output_dim: 128
@@ -65,6 +65,9 @@ model:
     nhead: 6
     head_dim: 64
     num_layers: 8
+    cfg_dropout: 0.1
+    cfg_weighting: 2.0
+    with_context: false
     dropout: 0.1
     layer_norm_eps: 1.0e-05
     norm_first: true
