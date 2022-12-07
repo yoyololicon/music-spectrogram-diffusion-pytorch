@@ -231,7 +231,7 @@ class Slakh2100(Base):
         frames = int(length_in_time * sr)
 
         if not self.with_context:
-            stems_chunk = []
+            stems_chunk = [np.zeros((frames, 1), dtype='float32')]
             for stem in stems:
                 try:
                     data, _ = sf.read(
@@ -245,7 +245,7 @@ class Slakh2100(Base):
 
         ctx_offset = offset - frames
         if ctx_offset >= 0:
-            stems_ctx = []
+            stems_ctx = [np.zeros((frames * 2, 1), dtype='float32')]
             for stem in stems:
                 try:
                     data, _ = sf.read(
@@ -257,7 +257,7 @@ class Slakh2100(Base):
             data = ctx[frames:]
             ctx = ctx[:frames]
         else:
-            stems_chunk = []
+            stems_chunk = [np.zeros((frames, 1), dtype='float32')]
             for stem in stems:
                 try:
                     data, _ = sf.read(
