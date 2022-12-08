@@ -99,8 +99,8 @@ class ConcatData(pl.LightningDataModule):
             print("Train dataset weights: ", dataset_weights)
 
             self.sampler_weights = list(
-                chain(
-                    *tuple([dataset_weights[i] / train_num_samples[i]] * train_num_samples[i] for i in range(len(train_num_samples)))
+                chain.from_iterable(
+                    [dataset_weights[i] / train_num_samples[i]] * train_num_samples[i] for i in range(len(train_num_samples))
                 )
             )
 
