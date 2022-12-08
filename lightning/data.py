@@ -1,7 +1,8 @@
 import pytorch_lightning as pl
 import torch
-from torch.utils.data import DataLoader, ConcatDataset, default_collate
+from torch.utils.data import DataLoader, ConcatDataset, default_collate, WeightedRandomSampler
 from torch.nn.utils.rnn import pad_sequence
+from itertools import chain
 from data.musicnet import MusicNet
 from data.maestro import Maestro
 from data.urmp import URMP
@@ -38,7 +39,8 @@ class ConcatData(pl.LightningDataModule):
                  slakh_path: str = None,
                  guitarset_path: str = None,
                  urmp_wav_path: str = None,
-                 urmp_midi_path: str = None
+                 urmp_midi_path: str = None,
+                 sampling_temperature: float = 0.3
                  ):
         super().__init__()
         self.save_hyperparameters()
@@ -89,6 +91,19 @@ class ConcatData(pl.LightningDataModule):
                 val_datasets.append(
                     GuitarSet(path=self.hparams.guitarset_path, split='val', **factory_kwargs))
 
+            train_num_samples = [len(dataset) for dataset in train_datasets]
+            dataset_weights = [
+                x ** self.hparams.sampling_temperature for x in train_num_samples]
+
+            print("Train dataset sizes: ", train_num_samples)
+            print("Train dataset weights: ", dataset_weights)
+
+            self.sampler_weights = list(
+                chain(
+                    *tuple([dataset_weights[i] / train_num_samples[i]] * train_num_samples[i] for i in range(len(train_num_samples)))
+                )
+            )
+
             self.train_dataset = ConcatDataset(train_datasets)
             self.val_dataset = ConcatDataset(val_datasets)
 
@@ -118,7 +133,11 @@ class ConcatData(pl.LightningDataModule):
 
     def train_dataloader(self):
         collate_fn = get_padding_collate_fn(self.hparams.midi_output_size)
-        return DataLoader(self.train_dataset, batch_size=self.hparams.batch_size, shuffle=True, num_workers=4, collate_fn=collate_fn)
+        sampler = WeightedRandomSampler(self.sampler_weights, len(
+            self.sampler_weights), replacement=False)
+        return DataLoader(self.train_dataset, batch_size=self.hparams.batch_size,
+                          sampler=sampler,
+                          shuffle=False, num_workers=4, collate_fn=collate_fn)
 
     def val_dataloader(self):
         collate_fn = get_padding_collate_fn(self.hparams.midi_output_size)
