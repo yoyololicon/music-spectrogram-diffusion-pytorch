@@ -134,7 +134,7 @@ class ConcatData(pl.LightningDataModule):
     def train_dataloader(self):
         collate_fn = get_padding_collate_fn(self.hparams.midi_output_size)
         sampler = WeightedRandomSampler(self.sampler_weights, len(
-            self.sampler_weights), replacement=False)
+            self.sampler_weights), replacement=True)
         return DataLoader(self.train_dataset, batch_size=self.hparams.batch_size,
                           sampler=sampler,
                           shuffle=False, num_workers=4, collate_fn=collate_fn)
