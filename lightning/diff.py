@@ -87,8 +87,15 @@ class DiffusionLM(pl.LightningModule):
         z_t = x * alpha[:, None, None] + sigma[:, None, None] * noise
         return z_t, t, noise
 
-    def forward(self, midi: Tensor, seq_length=512, context=None, T=1000):
-        t = torch.linspace(0, 1, T).to(midi.device)
+    def forward(self, midi: Tensor, seq_length=256, mel_context=None, wav_context=None, rescale=True, T=1000):
+        if wav_context is not None:
+            context = self.mel(wav_context)
+        elif mel_context is not None:
+            context = mel_context
+        else:
+            context = None
+
+        t = torch.linspace(0, 1, T).to(self.device)
         log_snr = self.get_log_snr(t)
         log_alpha, log_var = log_snr2logas(log_snr)
 
@@ -98,11 +105,11 @@ class DiffusionLM(pl.LightningModule):
         c = -torch.expm1(log_snr[1:] - log_snr[:-1])
         c.relu_()
 
-        z_t = midi.new_empty(
-            midi.shape[0], seq_length, self.output_dim).normal_()
+        z_t = torch.randn(
+            midi.shape[0], seq_length, self.output_dim, device=self.device)
 
         dropout_mask = torch.tensor(
-            [0] * midi.shape[0] + [1] * midi.shape[0]).bool().to(midi.device)
+            [0] * midi.shape[0] + [1] * midi.shape[0]).bool().to(self.device)
         t = torch.broadcast_to(t, (midi.shape[0] * 2, T))
         midi = midi.repeat(2, 1)
         if context is not None:
@@ -115,6 +122,12 @@ class DiffusionLM(pl.LightningModule):
             cond_noise_hat, uncond_noise_hat = noise_hat.chunk(2, dim=0)
             noise_hat = cond_noise_hat * self.cfg_weighting + \
                 uncond_noise_hat * (1 - self.cfg_weighting)
+
+            noise_hat = noise_hat.clamp_(
+                (z_t - alpha[t_idx]) * var[t_idx].rsqrt(),
+                (alpha[t_idx] + z_t) * var[t_idx].rsqrt(),
+            )
+
             if s_idx >= 0:
                 mu = (z_t - var[t_idx].sqrt() * c[s_idx]
                       * noise_hat) * alpha_st[s_idx]
@@ -122,6 +135,9 @@ class DiffusionLM(pl.LightningModule):
                     torch.randn_like(z_t)
                 continue
             final = (z_t - var[0].sqrt() * noise_hat) / alpha[0]
+
+        if rescale:
+            final = self.mel[1].reverse(final)
         return final
 
     def training_step(self, batch, batch_idx):
