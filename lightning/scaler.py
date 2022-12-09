@@ -12,6 +12,9 @@ class Scaler(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return (x - self.min) / (self.max - self.min) * 2 - 1
 
+    def reverse(self, x: torch.Tensor) -> torch.Tensor:
+        return (x + 1) / 2 * (self.max - self.min) + self.min
+
 
 def adaptive_update_hook(module: Scaler, input):
     x = input[0]
