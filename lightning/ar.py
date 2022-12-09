@@ -8,6 +8,7 @@ from torchaudio.transforms import MelSpectrogram
 from models.ar_decoder import MIDI2SpecAR
 from .mel import MelFeature
 from .scaler import get_scaler
+from .eval_utils import get_models, calculate_metrics, aggregate_metrics, get_wav
 
 
 class AutoregressiveLM(pl.LightningModule):
@@ -71,3 +72,30 @@ class AutoregressiveLM(pl.LightningModule):
 
     def configure_optimizers(self):
         return optim.Adafactor(self.parameters(), lr=1e-3)
+
+    def on_test_start(self) -> None:
+        vggish_model, trill_model, self.melgan = get_models()
+        self.vggish_fn = lambda x, sr: vggish_model(x.flatten())
+        self.trill_fn = lambda x, sr: trill_model(x.flatten(), sample_rate=sr)['embedding']
+        return super().on_test_start()
+
+    def test_step(self, batch, batch_idx):
+        midi, orig_wav, *_ = batch
+        spec = self.mel(orig_wav)
+        past_spec = spec.roll(1, dims=1)
+        past_spec[:, 0] = 0
+        pred = self.model(midi, past_spec)
+        loss = F.mse_loss(pred, spec)
+        pred_wav = self.spec_to_wav(pred)
+        metric = calculate_metrics(orig_wav, pred_wav, self.vggish_fn, self.trill_fn)
+        metric["loss"] = loss
+        return metric 
+
+    def test_epoch_end(self, outputs) -> None:
+        metrics = aggregate_metrics(outputs)
+        self.log_dict(metrics, prog_bar=True, sync_dist=True)
+        
+        return super().test_epoch_end(outputs)
+
+    def spec_to_wav(self, spec):
+        return get_wav(self.melgan, spec)
