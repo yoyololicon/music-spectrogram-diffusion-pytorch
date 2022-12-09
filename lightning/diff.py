@@ -122,6 +122,12 @@ class DiffusionLM(pl.LightningModule):
             cond_noise_hat, uncond_noise_hat = noise_hat.chunk(2, dim=0)
             noise_hat = cond_noise_hat * self.cfg_weighting + \
                 uncond_noise_hat * (1 - self.cfg_weighting)
+
+            noise_hat = noise_hat.clamp_(
+                (z_t - alpha[t_idx]) * var[t_idx].rsqrt(),
+                (alpha[t_idx] + z_t) * var[t_idx].rsqrt(),
+            )
+
             if s_idx >= 0:
                 mu = (z_t - var[t_idx].sqrt() * c[s_idx]
                       * noise_hat) * alpha_st[s_idx]
