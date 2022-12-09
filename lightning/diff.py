@@ -87,7 +87,14 @@ class DiffusionLM(pl.LightningModule):
         z_t = x * alpha[:, None, None] + sigma[:, None, None] * noise
         return z_t, t, noise
 
-    def forward(self, midi: Tensor, seq_length=512, context=None, T=1000):
+    def forward(self, midi: Tensor, seq_length=256, mel_context=None, wav_context=None, rescale=True, T=1000):
+        if wav_context is not None:
+            context = self.mel(wav_context)
+        elif mel_context is not None:
+            context = mel_context
+        else:
+            context = None
+
         t = torch.linspace(0, 1, T).to(self.device)
         log_snr = self.get_log_snr(t)
         log_alpha, log_var = log_snr2logas(log_snr)
@@ -122,6 +129,9 @@ class DiffusionLM(pl.LightningModule):
                     torch.randn_like(z_t)
                 continue
             final = (z_t - var[0].sqrt() * noise_hat) / alpha[0]
+
+        if rescale:
+            final = self.mel[1].reverse(final)
         return final
 
     def training_step(self, batch, batch_idx):
