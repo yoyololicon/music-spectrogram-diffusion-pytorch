@@ -88,7 +88,7 @@ class DiffusionLM(pl.LightningModule):
         return z_t, t, noise
 
     def forward(self, midi: Tensor, seq_length=512, context=None, T=1000):
-        t = torch.linspace(0, 1, T).to(midi.device)
+        t = torch.linspace(0, 1, T).to(self.device)
         log_snr = self.get_log_snr(t)
         log_alpha, log_var = log_snr2logas(log_snr)
 
@@ -98,11 +98,11 @@ class DiffusionLM(pl.LightningModule):
         c = -torch.expm1(log_snr[1:] - log_snr[:-1])
         c.relu_()
 
-        z_t = midi.new_empty(
-            midi.shape[0], seq_length, self.output_dim).normal_()
+        z_t = torch.randn(
+            midi.shape[0], seq_length, self.output_dim, device=self.device)
 
         dropout_mask = torch.tensor(
-            [0] * midi.shape[0] + [1] * midi.shape[0]).bool().to(midi.device)
+            [0] * midi.shape[0] + [1] * midi.shape[0]).bool().to(self.device)
         t = torch.broadcast_to(t, (midi.shape[0] * 2, T))
         midi = midi.repeat(2, 1)
         if context is not None:
