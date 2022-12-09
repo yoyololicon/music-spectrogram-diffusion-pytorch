@@ -42,6 +42,7 @@ if __name__ == '__main__':
     parser.add_argument('ckpt', type=str)
     parser.add_argument('config', type=str)
     parser.add_argument('output', type=str)
+    parser.add_argument('-W', type=float, default=None)
 
     args = parser.parse_args()
 
@@ -49,7 +50,10 @@ if __name__ == '__main__':
         config = yaml.safe_load(f)
 
     model_configs = config['model']
-    model_configs['init_args']['cfg_weighting'] = 1.0
+
+    if args.W is not None:
+        model_configs['init_args']['cfg_weighting'] = args.W
+        
     module_path, class_name = model_configs['class_path'].rsplit('.', 1)
     module = import_module(module_path)
     model = getattr(module, class_name).load_from_checkpoint(
