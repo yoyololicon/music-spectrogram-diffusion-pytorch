@@ -98,21 +98,18 @@ def aggregate_metrics(metrics):
         print()
     loss = sum([m["loss"] for m in metrics]) / len(metrics)
 
-    vggish_embedding_size = metrics[0]["vggish_true_embedding"].shape[-1]
-    trill_embedding_size = metrics[0]["trill_true_embedding"].shape[-1]
-
-    vggish_true_embedding = np.array(
+    vggish_true_embedding = np.vstack(
         [m["vggish_true_embedding"] for m in metrics]
-    ).reshape(-1, vggish_embedding_size)
-    vggish_pred_embedding = np.array(
+    )
+    vggish_pred_embedding = np.vstack(
         [m["vggish_pred_embedding"] for m in metrics]
-    ).reshape(-1, vggish_embedding_size)
-    trill_true_embedding = np.array(
+    )
+    trill_true_embedding = np.vstack(
         [m["trill_true_embedding"] for m in metrics]
-    ).reshape(-1, trill_embedding_size)
-    trill_pred_embedding = np.array(
+    )
+    trill_pred_embedding = np.vstack(
         [m["trill_pred_embedding"] for m in metrics]
-    ).reshape(-1, trill_embedding_size)
+    )
 
     vggish_recon = np.linalg.norm(
         vggish_pred_embedding - vggish_true_embedding, axis=1
