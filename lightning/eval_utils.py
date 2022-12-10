@@ -26,7 +26,7 @@ def get_models():
 
 
 def get_wav(model, spec):
-    spec = tf.convert_to_tensor(spec.numpy().astype(np.float32))
+    spec = tf.convert_to_tensor(spec.cpu().numpy().astype(np.float32))
     return model(spec).numpy()
 
 
