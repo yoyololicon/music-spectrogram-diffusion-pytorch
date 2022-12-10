@@ -189,12 +189,17 @@ class DiffusionLM(pl.LightningModule):
         return super().on_test_start()
 
     def test_step(self, batch, batch_idx):
-        midi, orig_wav, *_ = batch
-        spec = self.mel(orig_wav)
-        past_spec = spec.roll(1, dims=1)
-        past_spec[:, 0] = 0
-        pred = self.model(midi, past_spec)
-        loss = F.mse_loss(pred, spec)
+        midi, wav, *_ = batch
+        spec = self.mel(wav)
+        if len(_) > 0:
+            context = _[0]
+            context = self.mel(context)
+        else:
+            context = None
+        z_t, t, noise = self.get_training_inputs(spec, uniform=True)
+        noise_hat = self.model(midi, z_t, t, context)
+        loss = F.l1_loss(noise_hat, noise)
+        pred = self.forward(midi, mel_context=context)
         pred_wav = self.spec_to_wav(pred)
         metric = calculate_metrics(orig_wav, pred_wav, self.vggish_fn, self.trill_fn)
         metric["loss"] = loss
