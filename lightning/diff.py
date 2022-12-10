@@ -189,8 +189,8 @@ class DiffusionLM(pl.LightningModule):
         return super().on_test_start()
 
     def test_step(self, batch, batch_idx):
-        midi, wav, *_ = batch
-        spec = self.mel(wav)
+        midi, orig_wav, *_ = batch
+        spec = self.mel(orig_wav)
         if len(_) > 0:
             context = _[0]
             context = self.mel(context)
