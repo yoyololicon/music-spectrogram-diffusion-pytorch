@@ -96,7 +96,7 @@ def aggregate_metrics(metrics):
     assert len(metrics) > 0, "Should have at least one segment"
     if len(metrics) <= 0:
         print()
-    loss = sum([m["loss"] for m in metrics]) / len(metrics)
+    loss = sum(m["loss"] for m in metrics) / len(metrics)
 
     vggish_true_embedding = np.vstack(
         [m["vggish_true_embedding"] for m in metrics]
