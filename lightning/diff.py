@@ -199,9 +199,9 @@ class DiffusionLM(pl.LightningModule):
         z_t, t, noise = self.get_training_inputs(spec, uniform=True)
         noise_hat = self.model(midi, z_t, t, context)
         loss = F.l1_loss(noise_hat, noise)
-        pred = self.forward(midi, mel_context=context)
+        pred = self.forward(midi, seq_length=spec.shape[1], mel_context=context)
         pred_wav = self.spec_to_wav(pred)
-        metric = calculate_metrics(orig_wav, pred_wav, self.vggish_fn, self.trill_fn)
+        metric = calculate_metrics(orig_wav.cpu().numpy(), pred_wav, self.vggish_fn, self.trill_fn)
         metric["loss"] = loss
         return metric 
 
