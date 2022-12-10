@@ -82,9 +82,7 @@ class AutoregressiveLM(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         midi, orig_wav, *_ = batch
         spec = self.mel(orig_wav)
-        past_spec = spec.roll(1, dims=1)
-        past_spec[:, 0] = 0
-        pred = self.model(midi, past_spec)
+        pred = self.model.infer(midi)
         loss = F.mse_loss(pred, spec)
         pred_wav = self.spec_to_wav(pred)
         metric = calculate_metrics(orig_wav, pred_wav, self.vggish_fn, self.trill_fn)
