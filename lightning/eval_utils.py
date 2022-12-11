@@ -37,6 +37,10 @@ def _get_embedding(data, model_fn):
 
 
 def _get_frechet_distance(true_embeddings, pred_embeddings, eps=1e-6):
+    """
+    Get FAD distance between two embedding samples
+    Implementation Reference: https://github.com/gudgud96/frechet-audio-distance
+    """
     true_mu = true_embeddings.mean(axis=0)
     true_sigma = np.cov(true_embeddings, rowvar=False)
     pred_mu = pred_embeddings.mean(axis=0)
