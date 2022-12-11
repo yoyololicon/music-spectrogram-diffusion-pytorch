@@ -184,9 +184,9 @@ class DiffusionLM(pl.LightningModule):
 
     def on_test_start(self) -> None:
         vggish_model, trill_model, self.melgan = get_models()
-        self.vggish_fn = lambda x, sr: vggish_model(x.flatten())
+        self.vggish_fn = lambda x, sr: vggish_model(x)
         self.trill_fn = lambda x, sr: trill_model(
-            x.flatten(), sample_rate=sr)['embedding']
+            x, sample_rate=sr)['embedding']
         return super().on_test_start()
 
     def test_step(self, batch, batch_idx):

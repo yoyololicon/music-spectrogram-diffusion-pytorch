@@ -32,8 +32,11 @@ def get_wav(model, spec):
 
 def _get_embedding(data, model_fn):
     data = _resample_and_pad(data)
-    embedding = model_fn(data, MODEL_SAMPLE_RATE)
-    return embedding
+    embeddings = []
+    embeddings = np.vstack(
+        [model_fn(d, MODEL_SAMPLE_RATE) for d in data]
+    )
+    return embeddings
 
 
 def _get_frechet_distance(true_embeddings, pred_embeddings, eps=1e-6):
