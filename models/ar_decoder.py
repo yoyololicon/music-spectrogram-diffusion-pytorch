@@ -69,7 +69,7 @@ class MIDI2SpecAR(nn.Module):
         midi = self.emb(midi_tokens) + self.in_pos_emb[:seq_len]
         spec = self.linear_in(spec) + self.out_pos_emb[:spec.shape[1]]
         spec_tri_mask = self.transformer.generate_square_subsequent_mask(
-            spec.shape[1]).to(spec.device)
+            spec.shape[1], device=spec.device)
         x = self.transformer(midi, spec, tgt_mask=spec_tri_mask)
         x = self.linear_out(x)
         return x
