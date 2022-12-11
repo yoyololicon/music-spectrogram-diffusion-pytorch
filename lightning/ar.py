@@ -64,7 +64,7 @@ class AutoregressiveLM(pl.LightningModule):
         past_spec[:, 0] = 0
         pred = self.model(midi, past_spec)
         loss = F.mse_loss(pred, spec)
-        return loss
+        return loss.item()
 
     def validation_epoch_end(self, outputs) -> None:
         avg_loss = sum(outputs) / len(outputs)
@@ -76,7 +76,8 @@ class AutoregressiveLM(pl.LightningModule):
     def on_test_start(self) -> None:
         vggish_model, trill_model, self.melgan = get_models()
         self.vggish_fn = lambda x, sr: vggish_model(x.flatten())
-        self.trill_fn = lambda x, sr: trill_model(x.flatten(), sample_rate=sr)['embedding']
+        self.trill_fn = lambda x, sr: trill_model(
+            x.flatten(), sample_rate=sr)['embedding']
         return super().on_test_start()
 
     def test_step(self, batch, batch_idx):
@@ -85,14 +86,15 @@ class AutoregressiveLM(pl.LightningModule):
         pred = self.model.infer(midi)
         loss = F.mse_loss(pred, spec)
         pred_wav = self.spec_to_wav(pred)
-        metric = calculate_metrics(orig_wav, pred_wav, self.vggish_fn, self.trill_fn)
+        metric = calculate_metrics(
+            orig_wav, pred_wav, self.vggish_fn, self.trill_fn)
         metric["loss"] = loss
-        return metric 
+        return metric
 
     def test_epoch_end(self, outputs) -> None:
         metrics = aggregate_metrics(outputs)
         self.log_dict(metrics, prog_bar=True, sync_dist=True)
-        
+
         return super().test_epoch_end(outputs)
 
     def spec_to_wav(self, spec):

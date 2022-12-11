@@ -173,7 +173,7 @@ class DiffusionLM(pl.LightningModule):
         z_t, t, noise = self.get_training_inputs(spec, uniform=True)
         noise_hat = self.model(midi, z_t, t, context)
         loss = F.l1_loss(noise_hat, noise)
-        return loss
+        return loss.item()
 
     def validation_epoch_end(self, outputs) -> None:
         avg_loss = sum(outputs) / len(outputs)
@@ -185,7 +185,8 @@ class DiffusionLM(pl.LightningModule):
     def on_test_start(self) -> None:
         vggish_model, trill_model, self.melgan = get_models()
         self.vggish_fn = lambda x, sr: vggish_model(x.flatten())
-        self.trill_fn = lambda x, sr: trill_model(x.flatten(), sample_rate=sr)['embedding']
+        self.trill_fn = lambda x, sr: trill_model(
+            x.flatten(), sample_rate=sr)['embedding']
         return super().on_test_start()
 
     def test_step(self, batch, batch_idx):
@@ -199,16 +200,18 @@ class DiffusionLM(pl.LightningModule):
         z_t, t, noise = self.get_training_inputs(spec, uniform=True)
         noise_hat = self.model(midi, z_t, t, context)
         loss = F.l1_loss(noise_hat, noise)
-        pred = self.forward(midi, seq_length=spec.shape[1], mel_context=context)
+        pred = self.forward(
+            midi, seq_length=spec.shape[1], mel_context=context)
         pred_wav = self.spec_to_wav(pred)
-        metric = calculate_metrics(orig_wav.cpu().numpy(), pred_wav, self.vggish_fn, self.trill_fn)
+        metric = calculate_metrics(
+            orig_wav.cpu().numpy(), pred_wav, self.vggish_fn, self.trill_fn)
         metric["loss"] = loss
-        return metric 
+        return metric
 
     def test_epoch_end(self, outputs) -> None:
         metrics = aggregate_metrics(outputs)
         self.log_dict(metrics, prog_bar=True, sync_dist=True)
-        
+
         return super().test_epoch_end(outputs)
 
     def spec_to_wav(self, spec):
