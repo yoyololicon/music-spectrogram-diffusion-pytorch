@@ -8,7 +8,8 @@ MODEL_SAMPLE_RATE = 16000
 
 def _resample_and_pad(data):
     length = data.shape[-1]
-    target_length = int(np.ceil(length / MODEL_SAMPLE_RATE)) * MODEL_SAMPLE_RATE
+    target_length = int(np.ceil(length / MODEL_SAMPLE_RATE)
+                        ) * MODEL_SAMPLE_RATE
     padding = target_length - length
     data = np.pad(
         data, ((0, 0), (padding // 2, padding - padding // 2)), mode="constant"
@@ -21,7 +22,8 @@ def get_models():
         "https://tfhub.dev/google/nonsemantic-speech-benchmark/trill/3"
     )
     vggish_model = hub.load("https://tfhub.dev/google/vggish/1")
-    melgan = hub.load("https://tfhub.dev/google/soundstream/mel/decoder/music/1")
+    melgan = hub.load(
+        "https://tfhub.dev/google/soundstream/mel/decoder/music/1")
     return vggish_model, trill_model, melgan
 
 
@@ -31,8 +33,6 @@ def get_wav(model, spec):
 
 
 def _get_embedding(data, model_fn):
-    data = _resample_and_pad(data)
-    embeddings = []
     embeddings = np.vstack(
         [model_fn(d, MODEL_SAMPLE_RATE) for d in data]
     )
@@ -125,8 +125,10 @@ def aggregate_metrics(metrics):
         trill_pred_embedding - trill_true_embedding, axis=1
     ).mean(axis=0)
 
-    vggish_fad = _get_frechet_distance(vggish_true_embedding, vggish_pred_embedding)
-    trill_fad = _get_frechet_distance(trill_true_embedding, trill_pred_embedding)
+    vggish_fad = _get_frechet_distance(
+        vggish_true_embedding, vggish_pred_embedding)
+    trill_fad = _get_frechet_distance(
+        trill_true_embedding, trill_pred_embedding)
 
     return {
         "Evaluation Loss": loss,
