@@ -205,7 +205,7 @@ class DiffusionLM(pl.LightningModule):
         pred_wav = self.spec_to_wav(pred)
         metric = calculate_metrics(
             orig_wav.cpu().numpy(), pred_wav, self.vggish_fn, self.trill_fn)
-        metric["loss"] = loss
+        metric["loss"] = loss.item()
         return metric
 
     def test_epoch_end(self, outputs) -> None:
