@@ -2,5 +2,7 @@ torch
 torchaudio
 pytorch-lightning[extra]
 torch_optimizer
-note-seq
+note-seq==0.0.3
 jams
+tensorflow
+tensorflow-hub
