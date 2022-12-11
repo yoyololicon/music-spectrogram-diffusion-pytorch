@@ -40,8 +40,11 @@ class AutoregressiveLM(pl.LightningModule):
             get_scaler()
         )
 
-    def forward(self, midi, *args, **kwargs):
-        return self.model.infer(midi, *args, **kwargs)
+    def forward(self, midi, *args, rescale=True, **kwargs):
+        y = self.model.infer(midi, *args, **kwargs)
+        if rescale:
+            y = self.mel[1].reverse(y)
+        return y
 
     def training_step(self, batch, batch_idx):
         midi, wav, *_ = batch

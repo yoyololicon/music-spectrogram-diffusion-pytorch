@@ -89,7 +89,7 @@ class MIDI2SpecAR(nn.Module):
             if dither_amount > 0:
                 next_spec = next_spec + dither_amount * \
                     torch.randn_like(next_spec)
-                next_spec.clamp_(-1, 1)
+            next_spec.clamp_(-1, 1)
             spec = torch.cat([spec, next_spec], dim=1)
 
         return spec[:, 1:]
