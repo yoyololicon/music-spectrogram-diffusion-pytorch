@@ -58,38 +58,27 @@ class ConcatData(pl.LightningDataModule):
             'with_context': self.hparams.with_context,
         }
 
-        if stage == "fit" or stage is None:
+        if stage == "fit":
             train_datasets = []
-            val_datasets = []
             if self.hparams.musicnet_path is not None:
                 train_datasets.append(
                     MusicNet(path=self.hparams.musicnet_path, split='train', **factory_kwargs))
-                val_datasets.append(
-                    MusicNet(path=self.hparams.musicnet_path, split='val', **factory_kwargs))
 
             if self.hparams.maestro_path is not None:
                 train_datasets.append(
                     Maestro(path=self.hparams.maestro_path, split='train', **factory_kwargs))
-                val_datasets.append(
-                    Maestro(path=self.hparams.maestro_path, split='val', **factory_kwargs))
 
             if self.hparams.urmp_wav_path is not None and self.hparams.urmp_midi_path is not None:
                 train_datasets.append(
                     URMP(wav_path=self.hparams.urmp_wav_path, midi_path=self.hparams.urmp_midi_path, split='train', **factory_kwargs))
-                val_datasets.append(
-                    URMP(wav_path=self.hparams.urmp_wav_path, midi_path=self.hparams.urmp_midi_path, split='val', **factory_kwargs))
 
             if self.hparams.slakh_path is not None:
                 train_datasets.append(
                     Slakh2100(path=self.hparams.slakh_path, split='train', **factory_kwargs))
-                val_datasets.append(
-                    Slakh2100(path=self.hparams.slakh_path, split='val', **factory_kwargs))
 
             if self.hparams.guitarset_path is not None:
                 train_datasets.append(
                     GuitarSet(path=self.hparams.guitarset_path, split='train', **factory_kwargs))
-                val_datasets.append(
-                    GuitarSet(path=self.hparams.guitarset_path, split='val', **factory_kwargs))
 
             train_num_samples = [len(dataset) for dataset in train_datasets]
             dataset_weights = [
@@ -105,6 +94,29 @@ class ConcatData(pl.LightningDataModule):
             )
 
             self.train_dataset = ConcatDataset(train_datasets)
+
+        if stage == "validate" or stage == "fit":
+            val_datasets = []
+            if self.hparams.musicnet_path is not None:
+                val_datasets.append(
+                    MusicNet(path=self.hparams.musicnet_path, split='val', **factory_kwargs))
+
+            if self.hparams.maestro_path is not None:
+                val_datasets.append(
+                    Maestro(path=self.hparams.maestro_path, split='val', **factory_kwargs))
+
+            if self.hparams.urmp_wav_path is not None and self.hparams.urmp_midi_path is not None:
+                val_datasets.append(
+                    URMP(wav_path=self.hparams.urmp_wav_path, midi_path=self.hparams.urmp_midi_path, split='val', **factory_kwargs))
+
+            if self.hparams.slakh_path is not None:
+                val_datasets.append(
+                    Slakh2100(path=self.hparams.slakh_path, split='val', **factory_kwargs))
+
+            if self.hparams.guitarset_path is not None:
+                val_datasets.append(
+                    GuitarSet(path=self.hparams.guitarset_path, split='val', **factory_kwargs))
+
             self.val_dataset = ConcatDataset(val_datasets)
 
         if stage == "test":
