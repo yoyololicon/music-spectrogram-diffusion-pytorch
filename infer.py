@@ -12,7 +12,7 @@ import tensorflow as tf
 
 
 @torch.no_grad()
-def main(model, tokens, segment_length, spec_frames, with_context, spec2wav):
+def diff_main(model, tokens, segment_length, spec_frames, with_context, spec2wav):
     output_specs = []
     zero_wav_context = torch.zeros(
         1, segment_length).cuda() if with_context else None
@@ -36,6 +36,20 @@ def main(model, tokens, segment_length, spec_frames, with_context, spec2wav):
     return pred_wav.numpy().flatten()
 
 
+@torch.no_grad()
+def ar_main(model, tokens, spec_frames, dither_amount, spec2wav):
+    output_specs = []
+    for x in tqdm(tokens):
+        x = x.unsqueeze(0).cuda()
+        pred = model(x, max_len=spec_frames, dither_amount=dither_amount)
+        output_specs.append(pred)
+
+    output_specs = torch.cat(output_specs, dim=1)
+    output_specs = tf.convert_to_tensor(output_specs.cpu().numpy())
+    pred_wav = spec2wav(output_specs)
+    return pred_wav.numpy().flatten()
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('midi', type=str)
@@ -43,6 +57,7 @@ if __name__ == '__main__':
     parser.add_argument('config', type=str)
     parser.add_argument('output', type=str)
     parser.add_argument('-W', type=float, default=None)
+    parser.add_argument('--dither', type=float, default=0.0)
 
     args = parser.parse_args()
 
@@ -53,7 +68,7 @@ if __name__ == '__main__':
 
     if args.W is not None:
         model_configs['init_args']['cfg_weighting'] = args.W
-        
+
     module_path, class_name = model_configs['class_path'].rsplit('.', 1)
     module = import_module(module_path)
     model = getattr(module, class_name).load_from_checkpoint(
@@ -62,6 +77,7 @@ if __name__ == '__main__':
     model.eval()
 
     hop_length = model_configs['init_args']['hop_length']
+    n_mels = model_configs['init_args']['n_mels']
     data_configs = config['data']
     sr = data_configs['init_args']['sample_rate']
     segment_length = data_configs['init_args']['segment_length']
@@ -79,6 +95,10 @@ if __name__ == '__main__':
     spec2wav = hub.KerasLayer(
         'https://tfhub.dev/google/soundstream/mel/decoder/music/1')
 
-    pred = main(model, tokens, segment_length,
-                spec_frames, with_context, spec2wav)
+    if class_name == 'AutoregressiveLM':
+        pred = ar_main(model, tokens, spec_frames,
+                       args.dither, spec2wav)
+    else:
+        pred = diff_main(model, tokens, segment_length,
+                         spec_frames, with_context, spec2wav)
     sf.write(args.output, pred, sr)
