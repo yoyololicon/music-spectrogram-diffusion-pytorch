@@ -1,3 +1,4 @@
+from collections import defaultdict
 import pytorch_lightning as pl
 import torch
 from torch import nn
@@ -8,7 +9,7 @@ from torchaudio.transforms import MelSpectrogram
 from models.ar_decoder import MIDI2SpecAR
 from .mel import MelFeature
 from .scaler import get_scaler
-from .eval_utils import get_models, calculate_metrics, aggregate_metrics, get_wav
+from .eval_utils import get_models, calculate_metrics, aggregate_metrics, get_wav, StreamingMultivariateGaussian
 
 
 class AutoregressiveLM(pl.LightningModule):
@@ -81,6 +82,10 @@ class AutoregressiveLM(pl.LightningModule):
         self.vggish_fn = lambda x, sr: vggish_model(x)
         self.trill_fn = lambda x, sr: trill_model(
             x, sample_rate=sr)['embedding']
+
+        self.true_dists = defaultdict(StreamingMultivariateGaussian)
+        self.pred_dists = defaultdict(StreamingMultivariateGaussian)
+
         return super().on_test_start()
 
     def test_step(self, batch, batch_idx):
@@ -89,13 +94,14 @@ class AutoregressiveLM(pl.LightningModule):
         pred = self.model.infer(midi)
         loss = F.mse_loss(pred, spec)
         pred_wav = self.spec_to_wav(pred)
+        orig_wav = orig_wav.cpu().numpy()
         metric = calculate_metrics(
-            orig_wav, pred_wav, self.vggish_fn, self.trill_fn)
+            orig_wav, pred_wav, self.vggish_fn, self.trill_fn, self.true_dists, self.pred_dists)
         metric["loss"] = loss
         return metric
 
     def test_epoch_end(self, outputs) -> None:
-        metrics = aggregate_metrics(outputs)
+        metrics = aggregate_metrics(outputs, self.true_dists, self.pred_dists)
         self.log_dict(metrics, prog_bar=True, sync_dist=True)
 
         return super().test_epoch_end(outputs)

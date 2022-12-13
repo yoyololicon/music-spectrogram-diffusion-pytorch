@@ -5,14 +5,13 @@ import tensorflow_hub as hub
 
 MODEL_SAMPLE_RATE = 16000
 
-
 def _resample_and_pad(data):
     length = data.shape[-1]
     target_length = int(np.ceil(length / MODEL_SAMPLE_RATE)
                         ) * MODEL_SAMPLE_RATE
     padding = target_length - length
     data = np.pad(
-        data, ((0, 0), (padding // 2, padding - padding // 2)), mode="constant"
+        data, (padding // 2, padding - padding // 2), mode="constant"
     )
     return data
 
@@ -34,21 +33,16 @@ def get_wav(model, spec):
 
 def _get_embedding(data, model_fn):
     embeddings = np.vstack(
-        [model_fn(d, MODEL_SAMPLE_RATE) for d in data]
+        [model_fn(_resample_and_pad(d), MODEL_SAMPLE_RATE) for d in data]
     )
     return embeddings
 
 
-def _get_frechet_distance(true_embeddings, pred_embeddings, eps=1e-6):
+def _get_frechet_distance(true_mu, true_sigma, pred_mu, pred_sigma, eps=1e-6):
     """
     Get FAD distance between two embedding samples
     Implementation Reference: https://github.com/gudgud96/frechet-audio-distance
     """
-    true_mu = true_embeddings.mean(axis=0)
-    true_sigma = np.cov(true_embeddings, rowvar=False)
-    pred_mu = pred_embeddings.mean(axis=0)
-    pred_sigma = np.cov(pred_embeddings, rowvar=False)
-
     true_mu = np.atleast_1d(true_mu)
     pred_mu = np.atleast_1d(pred_mu)
     true_sigma = np.atleast_2d(true_sigma)
@@ -85,55 +79,60 @@ def _get_frechet_distance(true_embeddings, pred_embeddings, eps=1e-6):
     return diff.dot(diff) + np.trace(pred_sigma) + np.trace(true_sigma) - 2 * tr_covmean
 
 
-def calculate_metrics(orig_wav, pred_wav, vggish_fn, trill_fn):
-    vggish_true_embedding = _get_embedding(orig_wav, vggish_fn)
-    vggish_pred_embedding = _get_embedding(pred_wav, vggish_fn)
-    trill_true_embedding = _get_embedding(orig_wav, trill_fn)
-    trill_pred_embedding = _get_embedding(pred_wav, trill_fn)
-    metrics = {
-        "vggish_true_embedding": vggish_true_embedding,
-        "vggish_pred_embedding": vggish_pred_embedding,
-        "trill_true_embedding": trill_true_embedding,
-        "trill_pred_embedding": trill_pred_embedding,
-    }
+def calculate_metrics(orig_wav, pred_wav, vggish_fn, trill_fn, true_dist, pred_dist):
+    metrics = {}
+    for name, fn in [('trill', trill_fn), ('vggish', vggish_fn)]:
+        pred_embedding = _get_embedding(pred_wav, fn)
+        true_embedding = _get_embedding(orig_wav, fn)
+        metrics[name] = np.linalg.norm(pred_embedding - true_embedding, axis=1).mean()
+        pred_dist[name].update(pred_embedding)
+        true_dist[name].update(true_embedding)
     return metrics
 
 
-def aggregate_metrics(metrics):
+class StreamingMultivariateGaussian(object):
+  """Streaming mean and covariance for multivariate Gaussian.
+     Reference: https://github.com/magenta/music-spectrogram-diffusion
+  """
+
+  def __init__(self):
+    self.n = 0
+    self.mu = None
+    self._sigma_accum = None
+
+  def update(self, x):
+    """Update mean and covariance with new data points."""
+    n, _ = x.shape
+    if self.n == 0:
+      self.n = n
+      self.mu = np.mean(x, axis=0)
+      x_res = x - self.mu[np.newaxis, :]
+      self._sigma_accum = np.dot(x_res.T, x_res)
+    else:
+      x_res_pre = x - self.mu[np.newaxis, :]
+      self.n += n
+      self.mu += np.sum(x_res_pre, axis=0) / self.n
+      x_res_post = x - self.mu[np.newaxis, :]
+      self._sigma_accum += np.dot(x_res_pre.T, x_res_post)
+
+  @property
+  def sigma(self):
+    return self._sigma_accum / self.n
+
+
+def aggregate_metrics(metrics, true_dists, pred_dists):
     assert len(metrics) > 0, "Should have at least one segment"
     if len(metrics) <= 0:
         print()
-    loss = sum(m["loss"] for m in metrics) / len(metrics)
+    metric = dict() 
+    metric["evaluation loss"] = sum(m["loss"] for m in metrics) / len(metrics)
+    for name in ["vggish", "trill"]:
+        metric[f"{name}_recon"] = sum(m[name] for m in metrics) / len(metrics)
+        metric[f"{name}_fad"]= _get_frechet_distance(
+            true_dists[name].mu, 
+            true_dists.sigma[name], 
+            pred_dists[name].mu, 
+            pred_dists[name].sigma
+        )
 
-    vggish_true_embedding = np.vstack(
-        [m["vggish_true_embedding"] for m in metrics]
-    )
-    vggish_pred_embedding = np.vstack(
-        [m["vggish_pred_embedding"] for m in metrics]
-    )
-    trill_true_embedding = np.vstack(
-        [m["trill_true_embedding"] for m in metrics]
-    )
-    trill_pred_embedding = np.vstack(
-        [m["trill_pred_embedding"] for m in metrics]
-    )
-
-    vggish_recon = np.linalg.norm(
-        vggish_pred_embedding - vggish_true_embedding, axis=1
-    ).mean(axis=0)
-    trill_recon = np.linalg.norm(
-        trill_pred_embedding - trill_true_embedding, axis=1
-    ).mean(axis=0)
-
-    vggish_fad = _get_frechet_distance(
-        vggish_true_embedding, vggish_pred_embedding)
-    trill_fad = _get_frechet_distance(
-        trill_true_embedding, trill_pred_embedding)
-
-    return {
-        "Evaluation Loss": loss,
-        "VGGish Recon": vggish_recon,
-        "VGGish FAD": vggish_fad,
-        "Trill Recon": trill_recon,
-        "Trill FAD": trill_fad,
-    }
+    return metric
