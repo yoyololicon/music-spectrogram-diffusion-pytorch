@@ -128,7 +128,7 @@ def aggregate_metrics(metrics, true_dists, pred_dists):
         metric[f"{name}_recon"] = sum(m[name] for m in metrics) / len(metrics)
         metric[f"{name}_fad"]= _get_frechet_distance(
             true_dists[name].mu, 
-            true_dists.sigma[name], 
+            true_dists[name].sigma,
             pred_dists[name].mu, 
             pred_dists[name].sigma
         )
