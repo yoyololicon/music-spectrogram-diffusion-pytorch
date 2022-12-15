@@ -33,7 +33,7 @@ def get_wav(model, spec):
 
 def _get_embedding(data, model_fn):
     embeddings = np.vstack(
-        [model_fn(_resample_and_pad(d), MODEL_SAMPLE_RATE) for d in data]
+        [model_fn(d, MODEL_SAMPLE_RATE) for d in data]
     )
     return embeddings
 
