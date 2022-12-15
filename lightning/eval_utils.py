@@ -122,8 +122,6 @@ class StreamingMultivariateGaussian(object):
 
 def aggregate_metrics(metrics, true_dists, pred_dists):
     assert len(metrics) > 0, "Should have at least one segment"
-    if len(metrics) <= 0:
-        print()
     metric = dict() 
     metric["evaluation loss"] = sum(m["loss"] for m in metrics) / len(metrics)
     for name in ["vggish", "trill"]:
