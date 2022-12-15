@@ -90,7 +90,7 @@ class DiffusionLM(pl.LightningModule):
         z_t = x * alpha[:, None, None] + sigma[:, None, None] * noise
         return z_t, t, noise
 
-    def forward(self, midi: Tensor, seq_length=256, mel_context=None, wav_context=None, rescale=True, T=1000):
+    def forward(self, midi: Tensor, seq_length=256, mel_context=None, wav_context=None, rescale=True, T=1000, verbose=True):
         if wav_context is not None:
             context = self.mel(wav_context)
         elif mel_context is not None:
@@ -118,7 +118,7 @@ class DiffusionLM(pl.LightningModule):
         if context is not None:
             context = context.repeat(2, 1, 1)
 
-        for t_idx in tqdm(range(T - 1, -1, -1)):
+        for t_idx in tqdm(range(T - 1, -1, -1), disable=not verbose):
             s_idx = t_idx - 1
             noise_hat = self.model(midi, z_t.repeat(
                 2, 1, 1), t[:, t_idx], context, dropout_mask=dropout_mask)
@@ -207,7 +207,7 @@ class DiffusionLM(pl.LightningModule):
         noise_hat = self.model(midi, z_t, t, context)
         loss = F.l1_loss(noise_hat, noise)
         pred = self.forward(
-            midi, seq_length=spec.shape[1], mel_context=context)
+            midi, seq_length=spec.shape[1], mel_context=context, verbose=False)
         pred_wav = self.spec_to_wav(pred)
         orig_wav = orig_wav.cpu().numpy()
         metric = calculate_metrics(

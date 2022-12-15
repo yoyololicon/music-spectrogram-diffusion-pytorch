@@ -74,14 +74,14 @@ class MIDI2SpecAR(nn.Module):
         x = self.linear_out(x)
         return x
 
-    def infer(self, midi_tokens, max_len=512, dither_amount=0.):
+    def infer(self, midi_tokens, max_len=512, dither_amount=0., verbose=True):
         batch_size, seq_len = midi_tokens.shape
         midi = self.emb(midi_tokens) + self.in_pos_emb[:seq_len]
         spec = midi.new_zeros(
             (batch_size, 1, self.linear_out.weight.shape[0]))
         memory = None
 
-        for i in tqdm(range(max_len)):
+        for i in tqdm(range(max_len), disable=not verbose):
             spec_emb = self.linear_in(spec) + self.out_pos_emb[:i+1]
             next_spec, memory = self.transformer.autoregressive_infer(
                 spec_emb, src=midi, memory=memory)
