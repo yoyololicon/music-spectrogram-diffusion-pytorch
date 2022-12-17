@@ -6,3 +6,4 @@ note-seq==0.0.3
 jams
 tensorflow
 tensorflow-hub
+pysoundfile

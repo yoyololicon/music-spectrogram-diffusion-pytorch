@@ -1,0 +1,20 @@
+name: magenta
+channels:
+  - defaults
+  - pytorch
+  - nvidia
+
+dependencies:
+  - pip
+  - numpy
+  - pytorch
+  - torchaudio
+  - torchvision
+  - cudatoolkit=11.7
+  - pip:
+    - pytorch-lightning[extra]
+    - torch-optimizer
+    - pysoundfile
+    - resampy
+    - note-seq==0.0.3
+    - jams
