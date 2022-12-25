@@ -2,16 +2,20 @@ import numpy as np
 from scipy import linalg
 import tensorflow as tf
 import tensorflow_hub as hub
+from sklearn.preprocessing import StandardScaler
+import librosa
 
 MODEL_SAMPLE_RATE = 16000
 
 def _resample_and_pad(data):
-    length = data.shape[-1]
+    data = np.nan_to_num(data)
+    #data = librosa.resample(data, 16000, MODEL_SAMPLE_RATE)
+    length = len(data)
     target_length = int(np.ceil(length / MODEL_SAMPLE_RATE)
                         ) * MODEL_SAMPLE_RATE
     padding = target_length - length
     data = np.pad(
-        data, (padding // 2, padding - padding // 2), mode="constant"
+        data, ((0, 0), (padding // 2, padding - padding // 2)), mode="constant"
     )
     return data
 
@@ -21,9 +25,9 @@ def get_models():
         "https://tfhub.dev/google/nonsemantic-speech-benchmark/trill/3"
     )
     vggish_model = hub.load("https://tfhub.dev/google/vggish/1")
-    melgan = hub.load(
-        "https://tfhub.dev/google/soundstream/mel/decoder/music/1")
-    return vggish_model, trill_model, melgan
+    spec2wav = hub.KerasLayer(
+        'https://tfhub.dev/google/soundstream/mel/decoder/music/1')
+    return vggish_model, trill_model, spec2wav 
 
 
 def get_wav(model, spec):
@@ -32,9 +36,9 @@ def get_wav(model, spec):
 
 
 def _get_embedding(data, model_fn):
-    embeddings = np.vstack(
-        [model_fn(d, MODEL_SAMPLE_RATE) for d in data]
-    )
+    embeddings = np.vstack([
+        model_fn(d, MODEL_SAMPLE_RATE).numpy() for d in data
+    ])
     return embeddings
 
 
@@ -84,7 +88,9 @@ def calculate_metrics(orig_wav, pred_wav, vggish_fn, trill_fn, true_dist, pred_d
     for name, fn in [('trill', trill_fn), ('vggish', vggish_fn)]:
         pred_embedding = _get_embedding(pred_wav, fn)
         true_embedding = _get_embedding(orig_wav, fn)
-        metrics[name] = np.linalg.norm(pred_embedding - true_embedding, axis=1).mean()
+        max_length = min(len(pred_embedding), len(true_embedding))
+        # metrics[name] = np.linalg.norm(pred_embedding - true_embedding, axis=1).mean()
+        metrics[name] = np.linalg.norm(pred_embedding[:max_length] - true_embedding[:max_length], axis=1).mean()
         pred_dist[name].update(pred_embedding)
         true_dist[name].update(true_embedding)
     return metrics
