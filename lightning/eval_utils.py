@@ -15,7 +15,7 @@ def _resample_and_pad(data):
                         ) * MODEL_SAMPLE_RATE
     padding = target_length - length
     data = np.pad(
-        data, ((0, 0), (padding // 2, padding - padding // 2)), mode="constant"
+        data, (padding // 2, padding - padding // 2), mode="constant"
     )
     return data
 
@@ -88,9 +88,13 @@ def calculate_metrics(orig_wav, pred_wav, vggish_fn, trill_fn, true_dist, pred_d
     for name, fn in [('trill', trill_fn), ('vggish', vggish_fn)]:
         pred_embedding = _get_embedding(pred_wav, fn)
         true_embedding = _get_embedding(orig_wav, fn)
+<<<<<<< HEAD
         max_length = min(len(pred_embedding), len(true_embedding))
         # metrics[name] = np.linalg.norm(pred_embedding - true_embedding, axis=1).mean()
         metrics[name] = np.linalg.norm(pred_embedding[:max_length] - true_embedding[:max_length], axis=1).mean()
+=======
+        metrics[name] = np.linalg.norm(pred_embedding - true_embedding, axis=1).mean()
+>>>>>>> master
         pred_dist[name].update(pred_embedding)
         true_dist[name].update(true_embedding)
     return metrics
