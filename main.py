@@ -12,7 +12,7 @@ def cli_main():
     cli = LightningCLI(
         trainer_defaults={
             'accelerator': 'gpu',
-            'strategy': DDPStrategy(find_unused_parameters=False),
+            'strategy': 'ddp',
             'log_every_n_steps': 1,
             'callbacks': [
                 ModelCheckpoint(
