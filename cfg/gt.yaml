@@ -1,0 +1,35 @@
+# pytorch_lightning==1.8.1
+seed_everything: 2434
+model:
+  class_path: lightning.GTEncoded
+  init_args:
+    sample_rate: 16000
+    n_fft: 1024
+    win_length: 640
+    hop_length: 320
+    f_min: 0.0
+    f_max: 8000.0
+    pad: 0
+    n_mels: 128
+    power: 1.0
+    normalized: false
+    wkwargs: null
+    center: true
+    pad_mode: reflect
+    onesided: true
+    norm: null
+    mel_scale: htk
+data:
+  class_path: lightning.data.ConcatData
+  init_args:
+    batch_size: 32
+    midi_output_size: null
+    with_context: true
+    sample_rate: 16000
+    segment_length: 81920
+    musicnet_path: /import/c4dm-datasets/musicnet/
+    maestro_path: /import/c4dm-datasets/maestro-v3.0.0/
+    slakh_path: /import/c4dm-datasets/Slakh/slakh2100_flac_redux/
+    guitarset_path: /import/c4dm-datasets/GuitarSet/
+    urmp_wav_path: /import/c4dm-datasets/URMP/Dataset/
+    urmp_midi_path: /import/c4dm-datasets/URMP-clean-midi/
