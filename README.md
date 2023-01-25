@@ -15,6 +15,8 @@ Please download the following datasets.
 
 ### Create Clean MIDI for URMP
 
+The MIDI files in the URMP dataset mostly don't contain the correct program number. Use the `clean_urmp_midi.py` script to create a new set of MIDI files that contain the correct program number corresponding to the instruments in the file names.
+
 ## Training
 
 ### Small Autoregressive
