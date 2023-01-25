@@ -45,6 +45,7 @@ python main.py fit --config cfg/diff_base.yaml
 
 Remember to change the path arguments under the `data` section of the yaml files to where you downloaded the dataset, or set them using `--data.init_args.*_path` keyword in commandline.
 You can also set the path to `null` if you want to ommit that dataset.
+Notice that URMP requires one extra path argument, which is where you create [the clean MIDI](#create-clean-midi-for-urmp).
 
 To adjust other hyperparmeters, please refer to [LightningCLI documentation](https://pytorch-lightning.readthedocs.io/en/stable/cli/lightning_cli.html) for more information.
 
